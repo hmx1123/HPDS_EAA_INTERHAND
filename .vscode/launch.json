@@ -1,0 +1,97 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+
+        {
+            "name": "test",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "test.py",
+            "console": "integratedTerminal"
+        },
+        
+        {
+            "name": "train",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "apps/train.py",
+            "args": [
+                "utils/defaults.yaml",
+            ],
+            "console": "integratedTerminal"
+        },
+
+        {
+            "name": "eval_interhand",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "apps/eval_interhand.py",
+            "args": [
+                "--data_path", "/home/hmx/hmx1123/datasets/interhand2.6m",
+                 "--model", "./output/model/exp/hpds_eaa_mini_1.pth",
+            ],
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "demo",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "apps/demo.py",
+            "args": [
+                "--img_path",
+                // "/home/hmx/hmx1123/datasets/interhand2.6m/test/img/",
+                "~/hmx1123/datasets/egohands_all_frames/chess_livingroom_B_S",
+                // "demo",
+                "--save_path",
+                // "demo/interhand2.6m",
+                "demo/egohands_distillation",
+                "--model",
+                "output/model/exp/hpds_eaa_mini_1.pth"
+            ],
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "gradio_demo",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "gradio_demo.py",
+            "args": [
+                
+            ],
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "see_pth",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "see_pth.py",
+            "args": [
+                
+            ],
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "EAA__main__",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "models/modules/EfficientAdditiveAttention.py",
+            "args": [
+                
+            ],
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "SimpleViT__main__",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "models/modules/simple_vit.py",
+            "args": [
+                
+            ],
+            "console": "integratedTerminal"
+        },
+    ]
+}

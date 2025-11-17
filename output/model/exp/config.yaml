@@ -1,0 +1,78 @@
+DATASET:
+  INTERHAND_PATH: /home/hmx/hmx1123/datasets/interhand2.6m
+DATA_AUGMENT:
+  SCALE: 0.1
+  THETA: 90
+  UV: 0.0
+LOSS_WEIGHT:
+  AUX:
+    DENSEPOSE: 30
+    HMS: 100
+    MASK: 500
+  DATA:
+    LABEL_2D: 50
+    LABEL_3D: 100
+  GRAPH:
+    NORM:
+      EDGE: 2000
+      NORMAL: 10
+      NORM_EPOCH: 50
+  NORM:
+    UPSAMPLE: 1.0
+MISC:
+  DENSE_COLOR: misc/v_color.pkl
+  GRAPH_LEFT_DICT_PATH: misc/graph_left.pkl
+  GRAPH_RIGHT_DICT_PATH: misc/graph_right.pkl
+  MANO_PATH: misc/mano
+  MANO_SEG_PATH: misc/mano_seg.pkl
+  MESH_LEFT: misc/mesh_left.pkl
+  MESH_RIGHT: misc/mesh_right.pkl
+  UPSAMPLE_PATH: misc/upsample.pkl
+MODEL:
+  DECONV_DIMS:
+  - 256
+  - 256
+  - 256
+  - 256
+  ENCODER_PRETRAIN_PATH: none
+  ENCODER_TYPE: resnet18
+  GCN_IN_DIM:
+  - 256
+  - 192
+  - 96
+  - 48
+  GCN_OUT_DIM:
+  - 192
+  - 96
+  - 48
+  - 24
+  IMG_DIMS:
+  - 256
+  - 128
+  - 64
+  freeze_upsample: true
+  graph_k: 2
+  graph_layer_num: 4
+MODEL_PARAM:
+  LrSc_PATH: none
+  MODEL_PRETRAIN_PATH: output/model/exp/hpds_eaa_mini_1.pth
+  OPTIM_PATH: none
+SAVE:
+  SAVE_DIR: ./output/model/exp
+  SAVE_GAP: 1
+  SAVE_NAME: hpds_eaa_mini_
+SEED: 25
+TB:
+  SAVE_DIR: ./output/log/exp
+  SHOW_GAP: 200
+TRAIN:
+  BATCH_SIZE: 32
+  DIST_PORT: 12345
+  EPOCHS: 400
+  LR: 0.0001
+  OPTIM: adam
+  current_epoch: 0
+  dropout: 0.05
+  lr_decay_gamma: 0.1
+  lr_decay_step: 50
+  warm_up: 3
