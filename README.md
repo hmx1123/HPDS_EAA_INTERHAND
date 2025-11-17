@@ -49,6 +49,8 @@ After collecting the above necessary files, the directory structure of `./misc` 
 │   └── wild_demo.pth
 ├── graph_left.pkl
 ├── graph_right.pkl
+├── mesh_left.pkl
+├── mesh_right.pkl
 ├── upsample.pkl
 ├── v_color.pkl
 
