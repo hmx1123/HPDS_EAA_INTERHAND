@@ -19,7 +19,7 @@ MODEL:
   graph_k: 2
   graph_layer_num: 4
 MODEL_PARAM:
-  MODEL_PRETRAIN_PATH: "output/model/exp/hpds_eaa_mini_1.pth"
+  MODEL_PRETRAIN_PATH: "output/model/exp/hpds_eaa_mini_53.pth"
   OPTIM_PATH: "none"
   LrSc_PATH: "none"
 DATASET:
@@ -37,7 +37,7 @@ TRAIN:
   warm_up: 3
   EPOCHS: 400
   BATCH_SIZE: 32
-  LR: 1.0e-4
+  LR: 1.0e-5
   dropout: 0.05
 LOSS_WEIGHT:
   AUX:
