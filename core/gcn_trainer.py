@@ -1,3 +1,8 @@
+import sys
+import os
+from tkinter.messagebox import NO
+sys.path.insert(0, os.path.abspath(
+    os.path.join(os.path.dirname(__file__), '..')))
 import torch
 import json
 import cv2 as cv
@@ -23,12 +28,6 @@ from dataset.dataset_utils import IMG_SIZE, BLUR_KERNEL
 from dataset.inference import get_final_preds2
 from torch.distributed.optim import ZeroRedundancyOptimizer
 from models.model import load_model
-import sys
-import os
-from tkinter.messagebox import NO
-sys.path.insert(0, os.path.abspath(
-    os.path.join(os.path.dirname(__file__), '..')))
-
 
 def freeze_model(model):
     for (name, params) in model.named_parameters():
@@ -202,9 +201,10 @@ def train_gcn(rank=0, world_size=1, cfg=None, dist_training=False):
             hms, mask, dense, img_fmaps, grid_fmaps = network.encoder(
                 imgTensors_gt)
             result, paramsDict, handDictList, otherInfo = network.decoder(
-                hms_gt, mask_gt, dense_gt
+                hms_gt, mask_gt, torch.cat(
+                    (dense_gt*mask_gt[:, :1], dense_gt*mask_gt[:, 1:]), dim=1)
             )
-            
+
             otherInfo['hms'] = hms
             otherInfo['mask'] = mask
             otherInfo['dense'] = dense
@@ -279,18 +279,22 @@ def train_gcn(rank=0, world_size=1, cfg=None, dist_training=False):
                 train_bar.set_description('train, epoch:{}'.format(epoch))
                 train_bar.set_postfix(totalLoss=loss.item())
                 epoch_loss.append(loss.item())
-                aux_loss['mask_loss'].append(aux_lost_dict['mask_loss'].item()*cfg.LOSS_WEIGHT.AUX.MASK) 
-                aux_loss['dense_loss'].append(aux_lost_dict['dense_loss'].item()*cfg.LOSS_WEIGHT.AUX.DENSEPOSE) 
-                aux_loss['hms_loss'].append(aux_lost_dict['hms_loss'].item()*cfg.LOSS_WEIGHT.AUX.HMS) 
-                aux_loss['total_loss'].append(aux_lost_dict['total_loss'].item()) 
+                aux_loss['mask_loss'].append(
+                    aux_lost_dict['mask_loss'].item()*cfg.LOSS_WEIGHT.AUX.MASK)
+                aux_loss['dense_loss'].append(
+                    aux_lost_dict['dense_loss'].item()*cfg.LOSS_WEIGHT.AUX.DENSEPOSE)
+                aux_loss['hms_loss'].append(
+                    aux_lost_dict['hms_loss'].item()*cfg.LOSS_WEIGHT.AUX.HMS)
+                aux_loss['total_loss'].append(
+                    aux_lost_dict['total_loss'].item())
         print(
             f" + epoch_loss:{np.mean(epoch_loss):.2f},\t + lr:{optimizer.param_groups[0]['lr']}")
-        
+
         print("aux_lost_dict:")
-        for k,v in aux_loss.items():
-            print(f'\t{k}:{np.mean(v):.2f}',end='')
+        for k, v in aux_loss.items():
+            print(f'\t{k}:{np.mean(v):.2f}', end='')
         print()
-            
+
         # print("+" * 100)
         lr_scheduler.step()
         if (epoch + 1) % cfg.SAVE.SAVE_GAP == 0:
