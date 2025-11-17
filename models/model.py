@@ -25,7 +25,7 @@ class Module(nn.Module):
     def forward(self, img):
         hms, mask, dp, img_fmaps, grid_fmaps = self.encoder(img)
         result, paramsDict, handDictList, otherInfo = self.decoder(
-           hms.detach(), mask.detach(), dp.detach()
+           hms, mask, dp
         )
 
         if hms is not None:
