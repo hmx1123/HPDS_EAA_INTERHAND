@@ -202,7 +202,7 @@ def train_gcn(rank=0, world_size=1, cfg=None, dist_training=False):
             hms, mask, dense, img_fmaps, grid_fmaps = network.encoder(
                 imgTensors_gt)
             result, paramsDict, handDictList, otherInfo = network.decoder(
-                hms, mask, dense
+                hms_gt, mask_gt, dense_gt
             )
             
             otherInfo['hms'] = hms
