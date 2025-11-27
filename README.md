@@ -32,6 +32,15 @@ $^{2}\;School\;of\;Software,\;Jiangxi\;Agricultural\;University,\;Jiangxi\;33004
 
 - gradio
 
+### Data Preparation
+1. Download necessary assets [misc.tar.gz](https://github.com/hmx1123/Efficient-Visual-Attention-Based-Lightweight-3D-Hand-Reconstruction./releases/tag/misc.tar.gz) and unzip it.
+2. Download InterHand2.6M dataset and unzip it.
+3. Process the dataset by the code provided by [IntagHand](https://github.com/Dw1010/IntagHand)
+
+```bash
+python dataset/interhand.py --data_path PATH_OF_INTERHAND2.6M --save_path ./data/interhand2.6m/
+```
+
 ### Pre-trained model and data
 
 - Register and download [MANO](https://mano.is.tue.mpg.de/)  data. Put `MANO_LEFT.pkl` and `MANO_RIGHT.pkl` in `misc/mano`
@@ -49,8 +58,6 @@ After collecting the above necessary files, the directory structure of `./misc` 
 │   └── wild_demo.pth
 ├── graph_left.pkl
 ├── graph_right.pkl
-├── mesh_left.pkl
-├── mesh_right.pkl
 ├── upsample.pkl
 ├── v_color.pkl
 
@@ -131,9 +138,7 @@ vert mean error:
     all: 9.048810228705406 mm
 ```
 
-
-## Acknowledgement
-
-The pytorch implementation of MANO is based on [manopth](https://github.com/hassony2/manopth). The GCN network is based on [hand-graph-cnn](https://github.com/3d-hand-shape/hand-graph-cnn). The heatmap generation and inference is based on [DarkPose](https://github.com/ilovepose/DarkPose). We thank the authors for their great job!
-
-
+## Acknowledgements
+ - Our code is based on [IntagHand](https://github.com/Dw1010/IntagHand), [SwiftFormer](https://github.com/Amshaker/SwiftFormer) We thank the authors of these inspiring works.
+ - We also thank the authors of [InterHand2.6M](https://mks0601.github.io/InterHand2.6M/) for the useful dataset.
+ - The renderer are based on the renderer from [Pytorch3D](https://pytorch3d.org/). 
