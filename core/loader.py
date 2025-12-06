@@ -11,8 +11,8 @@ import random
 import matplotlib.pyplot as plt
 import sys
 import os
-sys.path.insert(0, os.path.abspath(
-    os.path.join(os.path.dirname(__file__), '..')))
+
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from models.manolayer import ManoLayer
 from utils.utils import imgUtils, get_mano_path
 from dataset.interhand import InterHand_dataset
@@ -22,14 +22,19 @@ from dataset.dataset_utils import BONE_LENGTH
 class handDataset(Dataset):
     """mix different hand datasets"""
 
-    def __init__(self, mano_path=None,
-                 interPath=None,
-                 theta=[-90, 90], scale=[0.75, 1.25], uv=[-10, 10],
-                 flip=True,
-                 train=True,
-                 aux_size=64,
-                 bone_length=BONE_LENGTH,
-                 noise=0.0):
+    def __init__(
+        self,
+        mano_path=None,
+        interPath=None,
+        theta=[-90, 90],
+        scale=[0.75, 1.25],
+        uv=[-10, 10],
+        flip=True,
+        train=True,
+        aux_size=64,
+        bone_length=BONE_LENGTH,
+        noise=0.0,
+    ):
         if mano_path is None:
             mano_path = get_mano_path()
         self.dataset = {}
@@ -41,34 +46,45 @@ class handDataset(Dataset):
         self.noise = noise
         self.flip = flip
 
-        self.normalize_img = transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                                                  std=[0.229, 0.224, 0.225])
+        self.normalize_img = transforms.Normalize(
+            mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
+        )
 
         def invert_image(img, **kwargs):
             return 255 - img
-        self.transform = A.Compose([
-            A.CoarseDropout(num_holes_range=(1,3),
-                            hole_height_range=(16, 64),
-                            hole_width_range=(16, 64),
-                            fill="random_uniform",
-                            p=0.3
-                            ),
-            A.RandomBrightnessContrast(p=0.5),
-            # A.HueSaturationValue(
-            #     hue_shift_limit=20,  # 色调偏移限制
-            #     sat_shift_limit=30,  # 饱和度偏移限制
-            #     val_shift_limit=20,  # 明度偏移限制
-            #     p=0.7
-            # ),
-            A.RGBShift(r_shift_limit=20, g_shift_limit=20,
-                       b_shift_limit=20, p=0.5),
-            A.ChannelShuffle(p=0.2),
-            A.RandomGamma(p=0.3),
-            A.Lambda(image=invert_image, p=0.3),  # 亮度反转
-            # A.Blur(blur_limit=101, p=1),
-            # A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
-            # ToTensorV2(),
-        ])
+
+        self.transform = A.Compose(
+            [
+                A.CoarseDropout(
+                    num_holes_range=(1, 3),
+                    hole_height_range=(16, 64),
+                    hole_width_range=(16, 64),
+                    fill="random_uniform",
+                    p=0.3,
+                ),
+                A.RandomBrightnessContrast(p=0.5),
+                # A.HueSaturationValue(
+                #     hue_shift_limit=20,  # 色调偏移限制
+                #     sat_shift_limit=30,  # 饱和度偏移限制
+                #     val_shift_limit=20,  # 明度偏移限制
+                #     p=0.7
+                # ),
+                A.RGBShift(r_shift_limit=20, g_shift_limit=20, b_shift_limit=20, p=0.5),
+                A.ChannelShuffle(p=0.2),
+                A.RandomGamma(p=0.3),
+                A.Lambda(image=invert_image, p=0.3),  # 亮度反转
+                # A.Blur(blur_limit=101, p=1),
+                # A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
+                # ToTensorV2(),
+            ]
+        )
+
+        def mask_image(img, **kwargs):
+            return torch.zeros_like(img)
+
+        self.mask_fmaps = A.Compose(
+            A.Lambda(image=mask_image, p=0.1),
+        )
 
         self.train = train
         self.aux_size = aux_size
@@ -76,14 +92,17 @@ class handDataset(Dataset):
 
         if interPath is not None and os.path.exists(str(interPath)):
             if self.train:
-                split = 'train'
+                split = "train"
             else:
-                split = 'val'
-            self.dataset['inter'] = InterHand_dataset(interPath, split)
-            self.dataName.append('inter')
-            self.sizeList.append(len(self.dataset['inter']))
-            print('load interhand2.6m dataset, size: {}'.format(
-                len(self.dataset['inter'])))
+                split = "val"
+            self.dataset["inter"] = InterHand_dataset(interPath, split)
+            self.dataName.append("inter")
+            self.sizeList.append(len(self.dataset["inter"]))
+            print(
+                "load interhand2.6m dataset, size: {}".format(
+                    len(self.dataset["inter"])
+                )
+            )
 
         self.size = 0
         for s in self.sizeList:
@@ -96,48 +115,56 @@ class handDataset(Dataset):
         return self.size
 
     def augm_params(self):
-        theta = random.random() * \
-            (self.theta[1] - self.theta[0]) + self.theta[0]
-        scale = random.random() * \
-            (self.scale[1] - self.scale[0]) + self.scale[0]
+        theta = random.random() * (self.theta[1] - self.theta[0]) + self.theta[0]
+        scale = random.random() * (self.scale[1] - self.scale[0]) + self.scale[0]
         u = random.random() * (self.uv[1] - self.uv[0]) + self.uv[0]
         v = random.random() * (self.uv[1] - self.uv[0]) + self.uv[0]
         flip = random.random() > 0.5 if self.flip else False
         return theta, scale, u, v, flip
 
     def process_data(self, img, mask, dense, hand_dict):
-        label2d_list = [hand_dict['left']['verts2d'],
-                        hand_dict['left']['joints2d'],
-                        hand_dict['right']['verts2d'],
-                        hand_dict['right']['joints2d']]
-        label3d_list = [hand_dict['left']['verts3d'],
-                        hand_dict['left']['joints3d'],
-                        hand_dict['right']['verts3d'],
-                        hand_dict['right']['joints3d']]
+        label2d_list = [
+            hand_dict["left"]["verts2d"],
+            hand_dict["left"]["joints2d"],
+            hand_dict["right"]["verts2d"],
+            hand_dict["right"]["joints2d"],
+        ]
+        label3d_list = [
+            hand_dict["left"]["verts3d"],
+            hand_dict["left"]["joints3d"],
+            hand_dict["right"]["verts3d"],
+            hand_dict["right"]["joints3d"],
+        ]
 
         if self.train:
             # random sacle and translation
-            hms_left = hand_dict['left']['hms']
-            hms_right = hand_dict['right']['hms']
+            hms_left = hand_dict["left"]["hms"]
+            hms_right = hand_dict["right"]["hms"]
 
             theta, scale, u, v, flip = self.augm_params()
-            imgList, label2d_list, label3d_list, _ \
-                = imgUtils.data_augmentation(theta, scale, u, v,
-                                             img_list=[
-                                                 img, mask, dense] + hms_left + hms_right,
-                                             label2d_list=label2d_list,
-                                             label3d_list=label3d_list,
-                                             img_size=img.shape[0])
+            imgList, label2d_list, label3d_list, _ = imgUtils.data_augmentation(
+                theta,
+                scale,
+                u,
+                v,
+                img_list=[img, mask, dense] + hms_left + hms_right,
+                label2d_list=label2d_list,
+                label3d_list=label3d_list,
+                img_size=img.shape[0],
+            )
             img = imgList[0]
             mask = imgList[1]
             dense_map = imgList[2]
             hms = imgList[3:]
 
             # add img noise
-            img = imgUtils.add_noise(img.astype(np.float32),
-                                     noise=self.noise,
-                                     scale=255.0,
-                                     alpha=0.3, beta=0.05).astype(np.uint8)
+            img = imgUtils.add_noise(
+                img.astype(np.float32),
+                noise=self.noise,
+                scale=255.0,
+                alpha=0.3,
+                beta=0.05,
+            ).astype(np.uint8)
         else:
             flip = False
 
@@ -152,6 +179,7 @@ class handDataset(Dataset):
         dense_map = cv.resize(dense_map, (self.aux_size, self.aux_size))
         dense_map = torch.tensor(dense_map, dtype=torch.float32) / 255
         dense_map = dense_map.permute(2, 0, 1)
+        dense_map = self.mask_fmaps(dense_map)
 
         mask = cv.resize(mask, (self.aux_size, self.aux_size))
         ret, mask = cv.threshold(mask, 127, 255, cv.THRESH_BINARY)
@@ -161,6 +189,7 @@ class handDataset(Dataset):
             mask = mask[..., [1, 0]]
         mask = torch.tensor(mask, dtype=torch.float32)
         mask = mask.permute(2, 0, 1)
+        mask = self.mask_fmaps(mask)
 
         for i in range(len(hms)):
             hms[i] = cv.resize(hms[i], (self.aux_size, self.aux_size))
@@ -170,20 +199,22 @@ class handDataset(Dataset):
             hms = hms[..., idx]
         hms = torch.tensor(hms, dtype=torch.float32) / 255
         hms = hms.permute(2, 0, 1)
+        hms = self.mask_fmaps(hms)
 
         img = self.transform(image=img)
-        img = img['image']
-        
+        img = img["image"]
+
         # combined_img = np.hstack((img, img_trans))
         # plt.imshow(combined_img)
         # plt.savefig("myImage1.png")
-        
+
         # img=img_trans
 
         ori_img = torch.tensor(img, dtype=torch.float32) / 255
         ori_img = ori_img.permute(2, 0, 1)
-        imgTensor = torch.tensor(cv.cvtColor(
-            img, cv.COLOR_BGR2RGB), dtype=torch.float32) / 255
+        imgTensor = (
+            torch.tensor(cv.cvtColor(img, cv.COLOR_BGR2RGB), dtype=torch.float32) / 255
+        )
         imgTensor = imgTensor.permute(2, 0, 1)
         imgTensor = self.normalize_img(imgTensor)
 
@@ -196,8 +227,9 @@ class handDataset(Dataset):
         label3d_list[3] = label3d_list[3] - root_right
 
         if self.bone_length is not None:
-            length = np.linalg.norm(label3d_list[1][9] - label3d_list[1][0]) \
-                + np.linalg.norm(label3d_list[3][9] - label3d_list[3][0])
+            length = np.linalg.norm(
+                label3d_list[1][9] - label3d_list[1][0]
+            ) + np.linalg.norm(label3d_list[3][9] - label3d_list[3][0])
             length = length / 2
             scale = self.bone_length / length
             root_rel = root_rel * scale
@@ -206,10 +238,8 @@ class handDataset(Dataset):
 
         root_rel = torch.tensor(root_rel, dtype=torch.float32)
         for i in range(4):
-            label2d_list[i] = torch.tensor(
-                label2d_list[i], dtype=torch.float32)
-            label3d_list[i] = torch.tensor(
-                label3d_list[i], dtype=torch.float32)
+            label2d_list[i] = torch.tensor(label2d_list[i], dtype=torch.float32)
+            label3d_list[i] = torch.tensor(label3d_list[i], dtype=torch.float32)
 
         if flip:
             root_rel[1:] = -root_rel[1:]
@@ -223,11 +253,22 @@ class handDataset(Dataset):
             [v2d_l, j2d_l, v2d_r, j2d_r] = label2d_list
             [v3d_l, j3d_l, v3d_r, j3d_r] = label3d_list
 
-        return ori_img, \
-            imgTensor, mask, dense_map, hms, \
-            v2d_l, j2d_l, v2d_r, j2d_r, \
-            v3d_l, j3d_l, v3d_r, j3d_r, \
-            root_rel
+        return (
+            ori_img,
+            imgTensor,
+            mask,
+            dense_map,
+            hms,
+            v2d_l,
+            j2d_l,
+            v2d_r,
+            j2d_r,
+            v3d_l,
+            j3d_l,
+            v3d_r,
+            j3d_r,
+            root_rel,
+        )
 
     def __getitem__(self, idx):
         # for i in range(len(self.sizeList)):
@@ -238,6 +279,6 @@ class handDataset(Dataset):
         #             img, mask, dense, hand_dict = self.dataset[name][idx2]
         #         break
 
-        img, mask, dense, hand_dict = self.dataset['inter'][idx]
+        img, mask, dense, hand_dict = self.dataset["inter"][idx]
 
         return self.process_data(img, mask, dense, hand_dict)

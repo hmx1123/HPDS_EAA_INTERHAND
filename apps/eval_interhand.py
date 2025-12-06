@@ -20,7 +20,7 @@ from utils.utils import get_mano_path
 from utils.vis_utils import mano_two_hands_renderer
 from utils.config import load_cfg
 from models.manolayer import ManoLayer
-from models.modules import load_model
+from models.model import load_model
 
 class Jr():
     def __init__(self, J_regressor,

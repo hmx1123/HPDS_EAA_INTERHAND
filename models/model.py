@@ -23,10 +23,8 @@ class Module(nn.Module):
         self.decoder = decoder
 
     def forward(self, img):
-        hms, mask, dp, img_fmaps, grid_fmaps = self.encoder(img)
-        result, paramsDict, handDictList, otherInfo = self.decoder(
-           hms, mask, dp
-        )
+        hms, mask, dp = self.encoder(img)
+        result, paramsDict, handDictList, otherInfo = self.decoder(hms, mask, dp)
 
         if hms is not None:
             otherInfo["hms"] = hms

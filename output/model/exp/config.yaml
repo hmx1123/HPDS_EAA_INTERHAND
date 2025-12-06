@@ -55,7 +55,7 @@ MODEL:
   graph_layer_num: 4
 MODEL_PARAM:
   LrSc_PATH: none
-  MODEL_PRETRAIN_PATH: output/model/exp/hpds_eaa_mini_1.pth
+  MODEL_PRETRAIN_PATH: output/model/exp/hpds_eaa_mini_25.pth
   OPTIM_PATH: none
 SAVE:
   SAVE_DIR: ./output/model/exp
@@ -66,10 +66,10 @@ TB:
   SAVE_DIR: ./output/log/exp
   SHOW_GAP: 200
 TRAIN:
-  BATCH_SIZE: 32
+  BATCH_SIZE: 64
   DIST_PORT: 12345
   EPOCHS: 400
-  LR: 0.0001
+  LR: 0.001
   OPTIM: adam
   current_epoch: 0
   dropout: 0.05

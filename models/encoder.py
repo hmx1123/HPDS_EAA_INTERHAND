@@ -17,8 +17,7 @@ import torch
 import os
 import sys
 
-sys.path.insert(0, os.path.abspath(
-    os.path.join(os.path.dirname(__file__), "..")))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 
 class ResNetSimple_decoder(nn.Module):
@@ -59,8 +58,7 @@ class ResNetSimple_decoder(nn.Module):
         layers = []
         if direction == "up":
             layers.append(
-                nn.Upsample(scale_factor=2, mode="bilinear",
-                            align_corners=True)
+                nn.Upsample(scale_factor=2, mode="bilinear", align_corners=True)
             )
         layers.append(
             DepthWiseSeparableRes(
@@ -79,7 +77,7 @@ class ResNetSimple_decoder(nn.Module):
         for i in range(len(self.models)):
             # HRnet连接桥
             if i != 0:
-                in_x = torch.cat((in_x, x[i-1]), dim=1)
+                in_x = torch.cat((in_x, x[i - 1]), dim=1)
             #
             in_x = self.models[i](in_x)
             fmaps.append(in_x)
@@ -106,24 +104,19 @@ class ResNetSimple(nn.Module):
             "resnet152",
         ]
         if model_type == "resnet18":
-            self.resnet = resnet18(
-                weights=models.ResNet18_Weights.IMAGENET1K_V1)
+            self.resnet = resnet18(weights=models.ResNet18_Weights.IMAGENET1K_V1)
             self.expansion = 1
         elif model_type == "resnet34":
-            self.resnet = resnet34(
-                weights=models.ResNet34_Weights.IMAGENET1K_V1)
+            self.resnet = resnet34(weights=models.ResNet34_Weights.IMAGENET1K_V1)
             self.expansion = 1
         elif model_type == "resnet50":
-            self.resnet = resnet50(
-                weights=models.ResNet50_Weights.IMAGENET1K_V1)
+            self.resnet = resnet50(weights=models.ResNet50_Weights.IMAGENET1K_V1)
             self.expansion = 4
         elif model_type == "resnet101":
-            self.resnet = resnet101(
-                weights=models.ResNet101_Weights.IMAGENET1K_V1)
+            self.resnet = resnet101(weights=models.ResNet101_Weights.IMAGENET1K_V1)
             self.expansion = 4
         elif model_type == "resnet152":
-            self.resnet = resnet152(
-                weights=models.ResNet152_Weights.IMAGENET1K_V1)
+            self.resnet = resnet152(weights=models.ResNet152_Weights.IMAGENET1K_V1)
             self.expansion = 4
 
         # self.hms_decoder = ResNetSimple_decoder(
@@ -181,14 +174,55 @@ class ResNetSimple(nn.Module):
         # dp, dp_fmaps = self.dp_decoder(x1)
         # mask, mask_fmaps = self.mask_decoder(x1)
         fmaps, grid_fmaps = self.f_maps_decoder(img_fmaps)
-        hms = fmaps[:, :self.heatmapDim * self.handNum]
+        hms = fmaps[:, : self.heatmapDim * self.handNum]
         # hms=gaussian_nms(hms)
-        dp = fmaps[:, self.heatmapDim *
-                   self.handNum:self.heatmapDim * self.handNum+3 * self.handNum]
-        mask = fmaps[:, self.heatmapDim * self.handNum+3 *
-                     self.handNum:self.heatmapDim * self.handNum + 3 * self.handNum + self.handNum]
+        dp = fmaps[
+            :,
+            self.heatmapDim * self.handNum : self.heatmapDim * self.handNum
+            + 3 * self.handNum,
+        ]
+        mask = fmaps[
+            :,
+            self.heatmapDim * self.handNum
+            + 3 * self.handNum : self.heatmapDim * self.handNum
+            + 3 * self.handNum
+            + self.handNum,
+        ]
 
-        return hms, mask, dp, img_fmaps, grid_fmaps
+        return hms, mask, dp
+
+
+class HRNet(nn.Module):
+    def __init__(
+        self,
+        cfg=None,
+        handNum=2,
+        heatmapDim=21,
+    ):
+        super(HRNet, self).__init__()
+        from models.modules.hrnet import get_model
+
+        self.model = get_model(cfg)
+        self.handNum = handNum
+        self.heatmapDim = heatmapDim
+
+    def forward(self, x):
+        fmaps = self.model(x)
+        hms = fmaps[:, : self.heatmapDim * self.handNum]
+        # hms=gaussian_nms(hms)
+        dp = fmaps[
+            :,
+            self.heatmapDim * self.handNum : self.heatmapDim * self.handNum
+            + 3 * self.handNum,
+        ]
+        mask = fmaps[
+            :,
+            self.heatmapDim * self.handNum
+            + 3 * self.handNum : self.heatmapDim * self.handNum
+            + 3 * self.handNum
+            + self.handNum,
+        ]
+        return hms, mask, dp
 
 
 def load_encoder(cfg):
@@ -197,9 +231,17 @@ def load_encoder(cfg):
             model_type=cfg.MODEL.ENCODER_TYPE,
             pretrained=True,
             # HRnet:[512, 128+512, 128+256, 128+128], ResNet:[512, 128, 128, 128]
-            in_fmapDim=[512, 128+512, 128+256, 128+128],
-            # 
+            in_fmapDim=[512, 128 + 512, 128 + 256, 128 + 128],
+            #
             out_fmapDim=[128, 128, 128, 128],
+            handNum=2,
+            heatmapDim=21,
+        )
+    elif cfg.MODEL.ENCODER_TYPE.find("hrnet") != -1:
+        from models.modules.hrnet import get_model
+
+        encoder = HRNet(
+            cfg=cfg.MODEL.HRNet_MODEL,
             handNum=2,
             heatmapDim=21,
         )

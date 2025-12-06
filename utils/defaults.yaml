@@ -9,7 +9,7 @@ MISC:
   MANO_SEG_PATH: "misc/mano_seg.pkl"
   UPSAMPLE_PATH: "misc/upsample.pkl"
 MODEL:
-  ENCODER_TYPE: "resnet18"
+  ENCODER_TYPE: "hrnet"
   DECONV_DIMS: [256, 256, 256, 256]
   IMG_DIMS: [256, 128, 64]
   GCN_IN_DIM: [256, 192, 96, 48]
@@ -18,8 +18,64 @@ MODEL:
   freeze_upsample: True
   graph_k: 2
   graph_layer_num: 4
+  HRNet_MODEL:
+    NAME: seg_hrnet
+    NUM_OUTPUTS: 1
+    PRETRAINED: 'misc/model/hrnet_w18_small_model_v2.pth'
+    ALIGN_CORNERS: 'None'
+    NUM_CLASSES: 50
+    EXTRA:
+      FINAL_CONV_KERNEL: 1
+      STAGE1:
+        NUM_MODULES: 1
+        NUM_RANCHES: 1
+        BLOCK: BOTTLENECK
+        NUM_BLOCKS:
+        - 4
+        NUM_CHANNELS:
+        - 64
+        FUSE_METHOD: SUM
+      STAGE2:
+        NUM_MODULES: 1
+        NUM_BRANCHES: 2
+        BLOCK: BASIC
+        NUM_BLOCKS:
+        - 4
+        - 4
+        NUM_CHANNELS:
+        - 18
+        - 36
+        FUSE_METHOD: SUM
+      STAGE3:
+        NUM_MODULES: 4
+        NUM_BRANCHES: 3
+        BLOCK: BASIC
+        NUM_BLOCKS:
+        - 4
+        - 4
+        - 4
+        NUM_CHANNELS:
+        - 18
+        - 36
+        - 72
+        FUSE_METHOD: SUM
+      STAGE4:
+        NUM_MODULES: 3
+        NUM_BRANCHES: 4
+        BLOCK: BASIC
+        NUM_BLOCKS:
+        - 4
+        - 4
+        - 4
+        - 4
+        NUM_CHANNELS:
+        - 18
+        - 36
+        - 72
+        - 144
+        FUSE_METHOD: SUM
 MODEL_PARAM:
-  MODEL_PRETRAIN_PATH: "output/model/exp/hpds_eaa_mini_53.pth"
+  MODEL_PRETRAIN_PATH: "output/model/exp/hpds_eaa_mini_1.pth"
   OPTIM_PATH: "none"
   LrSc_PATH: "none"
 DATASET:
@@ -33,12 +89,12 @@ TRAIN:
   OPTIM: 'adam'
   current_epoch: 0
   lr_decay_step: 50
-  lr_decay_gamma: 0.1
+  lr_decay_gamma: 0.01
   warm_up: 3
   EPOCHS: 400
-  BATCH_SIZE: 32
-  LR: 1.0e-5
-  dropout: 0.05
+  BATCH_SIZE: 64
+  LR: 1.0e-3
+  dropout: 0.07
 LOSS_WEIGHT:
   AUX:
     DENSEPOSE: 30

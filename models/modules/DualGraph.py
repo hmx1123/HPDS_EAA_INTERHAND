@@ -1,11 +1,11 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from einops import rearrange
 
 from torch import Tensor
 from .gcn import GraphLayer
-from .img_attn import img_ex
-from .inter_attn import inter_attn
+from .EfficientAdditiveAttention import EfficientAdditiveAttention, FeedForward
 
 
 def graph_upsample(x, p):
@@ -50,6 +50,12 @@ class DualGraphLayer(nn.Module):
             graph_layer_num,
             dropout,
         )
+        self.inter_atten = nn.Sequential(
+                EfficientAdditiveAttention(
+                    in_dims=verts_out_dim, num_heads=4, dropout=dropout
+                ),
+                FeedForward(verts_out_dim, verts_out_dim),
+        )
 
         self.pos_emb_l = nn.Parameter(
             torch.zeros(1, self.verts_num, self.verts_out_dim)
@@ -68,6 +74,10 @@ class DualGraphLayer(nn.Module):
 
         Lf = self.graph_left(Lf)
         Rf = self.graph_right(Rf)
+        
+        feat=self.inter_atten(torch.cat((Lf,Rf),dim=1))
+        Lf = feat[:, :V]
+        Rf = feat[:, V:]
 
         return Lf, Rf
 
@@ -105,15 +115,11 @@ class DualGraph(nn.Module):
                     dropout=dropout,
                 )
             )
-            if i != len(verts_in_dim)-1:
+            if i != len(verts_in_dim) - 1:
                 if i == 2:
-                    self.upsample.append(
-                        nn.Upsample(size=778)
-                    )
+                    self.upsample.append(nn.Upsample(size=778))
                 else:
-                    self.upsample.append(
-                        nn.Upsample(scale_factor=2)
-                    )
+                    self.upsample.append(nn.Upsample(scale_factor=2))
 
     def forward(
         self,

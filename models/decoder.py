@@ -3,7 +3,7 @@ from models.modules.InvertedResidual import (
     DepthWiseSeparable,
     DepthWiseSeparableRes,
 )
-from models.modules import GCN_vert_convert, DualGraph, graph_upsample, graph_avg_pool, EfficientAdditiveAttention, EAViT
+from models.modules import GCN_vert_convert, DualGraph, EAViT
 from utils.utils import (
     projection_batch,
     get_dense_color_path,
@@ -20,8 +20,7 @@ import torch
 import os
 import sys
 
-sys.path.insert(0, os.path.abspath(
-    os.path.join(os.path.dirname(__file__), "..")))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 
 def weights_init(layer):
@@ -35,7 +34,6 @@ def weights_init(layer):
             nn.init.constant_(layer.bias.data, 0.0)
 
 
-
 class decoder(nn.Module):
     def __init__(
         self,
@@ -47,6 +45,7 @@ class decoder(nn.Module):
         right_graph_dict={},
         left_mesh_dict={},
         right_mesh_dict={},
+        adj_graph=None,
         vertex_num=778,
         dense_coor=None,
         num_attn_heads=4,
@@ -65,7 +64,7 @@ class decoder(nn.Module):
         mesh_L = {}
         for hand_type in ["left", "right"]:
             graph_L[hand_type] = graph_dict[hand_type]["coarsen_graphs_L"]
-            mesh_L[hand_type] = mesh_dict[hand_type]['mesh_L']
+            mesh_L[hand_type] = mesh_dict[hand_type]["mesh_L"]
 
         self.vNum_in = graph_L["left"][0].shape[0]
         self.vNum_out = graph_L["left"][2].shape[0]
@@ -89,12 +88,13 @@ class decoder(nn.Module):
         self.vit = EAViT(
             image_size=64,
             patch_size=8,
-            num_classes=self.gcn_in_dim[0]*2,
-            dim=512,
+            num_classes=self.gcn_in_dim[0],
+            dim=256,
             depth=6,
             heads=num_attn_heads,
             mlp_dim=256,
-            channels=42+6+2,
+            channels=42 + 6 + 2,
+            adj_mask=adj_graph,
         )
 
         self.dual_gcn = DualGraph(
@@ -103,18 +103,21 @@ class decoder(nn.Module):
             graph_L_Left=graph_L["left"][:3] + [mesh_L["left"]],
             graph_L_Right=graph_L["right"][:3] + [mesh_L["right"]],
             graph_k=[graph_k, graph_k, graph_k, graph_k],
-            graph_layer_num=[graph_layer_num, graph_layer_num,
-                             graph_layer_num, graph_layer_num],
+            graph_layer_num=[
+                graph_layer_num,
+                graph_layer_num,
+                graph_layer_num,
+                graph_layer_num,
+            ],
             dropout=dropout,
         )
 
-        self.unsample_layer = nn.Linear(
-            self.vNum_out, self.vNum_mano, bias=False)
+        self.unsample_layer = nn.Linear(self.vNum_out, self.vNum_mano, bias=False)
 
         self.avg_head = nn.Linear(256, 3)
         self.coord_avg_head = nn.AvgPool1d(kernel_size=8, stride=8)
-        
-        self.graph_upsample=nn.Upsample(size=1008)
+
+        self.graph_upsample = nn.Upsample(size=1008)
 
         for m in self.modules():
             weights_init(m)
@@ -133,18 +136,18 @@ class decoder(nn.Module):
     def forward(self, hms, mask, dp):
         map = torch.cat((hms, dp, mask), dim=1)
         grid_fmaps = self.vit(map)
-        Lf = grid_fmaps[:, :self.vNum_in, self.gcn_in_dim[0]:]
-        Rf = grid_fmaps[:, :self.vNum_in, :self.gcn_in_dim[0]]
+        Lf = grid_fmaps[:, : self.vNum_in]
+        Rf = grid_fmaps[:, self.vNum_in + 1 : -1]
 
         Lf, Rf = self.dual_gcn(Lf, Rf)
 
         scale = {}
         trans2d = {}
-        temp = grid_fmaps[:, self.vNum_in:, self.gcn_in_dim[0]:].squeeze(dim=1)
+        temp = grid_fmaps[:, self.vNum_in].squeeze(dim=1)
         temp = self.avg_head(temp)
         scale["left"] = temp[:, 0]
         trans2d["left"] = temp[:, 1:]
-        temp = grid_fmaps[:, self.vNum_in:, :self.gcn_in_dim[0]].squeeze(dim=1)
+        temp = grid_fmaps[:, -1].squeeze(dim=1)
         temp = self.avg_head(temp)
         scale["right"] = temp[:, 0]
         trans2d["right"] = temp[:, 1:]
@@ -152,8 +155,7 @@ class decoder(nn.Module):
         handDictList = []
 
         paramsDict = {"scale": scale, "trans2d": trans2d}
-        verts3d = {"left": self.coord_avg_head(
-            Lf), "right": self.coord_avg_head(Rf)}
+        verts3d = {"left": self.coord_avg_head(Lf), "right": self.coord_avg_head(Rf)}
         verts2d = {}
         result = {"verts3d": {}, "verts2d": {}}
         for hand_type in ["left", "right"]:
@@ -166,7 +168,7 @@ class decoder(nn.Module):
             # result["verts3d"][hand_type] = self.unsample_layer(
             #     verts3d[hand_type].transpose(1, 2)
             # ).transpose(1, 2)
-            result["verts3d"][hand_type]=verts3d[hand_type]
+            result["verts3d"][hand_type] = verts3d[hand_type]
             result["verts2d"][hand_type] = projection_batch(
                 scale[hand_type],
                 trans2d[hand_type],
@@ -181,16 +183,16 @@ class decoder(nn.Module):
         for i in range(len(handDictList)):
             for hand_type in ["left", "right"]:
                 v = handDictList[i]["verts3d"][hand_type]
-                v = v.permute(0, 2, 1).contiguous() 
+                v = v.permute(0, 2, 1).contiguous()
                 v = self.graph_upsample(v)
-                v = v.permute(0, 2, 1).contiguous() 
+                v = v.permute(0, 2, 1).contiguous()
                 otherInfo["verts3d_MANO_list"][hand_type].append(
                     self.converter[hand_type].GCN_to_vert(v)
                 )
                 v = handDictList[i]["verts2d"][hand_type]
-                v = v.permute(0, 2, 1).contiguous() 
+                v = v.permute(0, 2, 1).contiguous()
                 v = self.graph_upsample(v)
-                v = v.permute(0, 2, 1).contiguous() 
+                v = v.permute(0, 2, 1).contiguous()
                 otherInfo["verts2d_MANO_list"][hand_type].append(
                     self.converter[hand_type].GCN_to_vert(v)
                 )
@@ -220,6 +222,10 @@ def load_decoder(cfg):
     with open(mesh_dict_path["right"], "rb") as file:
         right_mesh_dict = pickle.load(file)
 
+    # directory='./misc/graphs_adj_128x128.pkl'
+    # with open(directory, "rb") as file:
+    #     graphs_adj_128x128 = pickle.load(file)
+
     model = decoder(
         gcn_in_dim=cfg.MODEL.GCN_IN_DIM,
         gcn_out_dim=cfg.MODEL.GCN_OUT_DIM,
@@ -231,6 +237,7 @@ def load_decoder(cfg):
         right_graph_dict=right_graph_dict,
         left_mesh_dict=left_mesh_dict,
         right_mesh_dict=right_mesh_dict,
+        adj_graph=None,
         num_attn_heads=16,
         upsample_weight=upsample_weight,
         dropout=cfg.TRAIN.dropout,
