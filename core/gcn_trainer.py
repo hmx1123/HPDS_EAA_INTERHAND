@@ -211,8 +211,7 @@ def train_gcn(rank=0, world_size=1, cfg=None, dist_training=False):
                 root_rel,
             ] = label_list_out
 
-
-            hms, mask, dense, img_fmaps, grid_fmaps = network.encoder(imgTensors_gt)
+            hms, mask, dense = network.encoder(imgTensors_gt)
             result, paramsDict, handDictList, otherInfo = network.decoder(
                 hms_gt,
                 mask_gt,
