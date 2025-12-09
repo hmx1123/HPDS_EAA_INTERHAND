@@ -79,13 +79,6 @@ class handDataset(Dataset):
             ]
         )
 
-        def mask_image(img, **kwargs):
-            return torch.zeros_like(img)
-
-        self.mask_fmaps = A.Compose(
-            A.Lambda(image=mask_image, p=0.1),
-        )
-
         self.train = train
         self.aux_size = aux_size
         self.bone_length = bone_length
@@ -179,7 +172,6 @@ class handDataset(Dataset):
         dense_map = cv.resize(dense_map, (self.aux_size, self.aux_size))
         dense_map = torch.tensor(dense_map, dtype=torch.float32) / 255
         dense_map = dense_map.permute(2, 0, 1)
-        dense_map = self.mask_fmaps(dense_map)
 
         mask = cv.resize(mask, (self.aux_size, self.aux_size))
         ret, mask = cv.threshold(mask, 127, 255, cv.THRESH_BINARY)
@@ -189,7 +181,6 @@ class handDataset(Dataset):
             mask = mask[..., [1, 0]]
         mask = torch.tensor(mask, dtype=torch.float32)
         mask = mask.permute(2, 0, 1)
-        mask = self.mask_fmaps(mask)
 
         for i in range(len(hms)):
             hms[i] = cv.resize(hms[i], (self.aux_size, self.aux_size))
@@ -199,7 +190,6 @@ class handDataset(Dataset):
             hms = hms[..., idx]
         hms = torch.tensor(hms, dtype=torch.float32) / 255
         hms = hms.permute(2, 0, 1)
-        hms = self.mask_fmaps(hms)
 
         img = self.transform(image=img)
         img = img["image"]

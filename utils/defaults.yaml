@@ -9,7 +9,7 @@ MISC:
   MANO_SEG_PATH: "misc/mano_seg.pkl"
   UPSAMPLE_PATH: "misc/upsample.pkl"
 MODEL:
-  ENCODER_TYPE: "res18"
+  ENCODER_TYPE: "hrnet"
   DECONV_DIMS: [256, 256, 256, 256]
   IMG_DIMS: [256, 128, 64]
   GCN_IN_DIM: [256, 192, 96, 48]
@@ -19,7 +19,7 @@ MODEL:
   graph_k: 2
   graph_layer_num: 4
   HRNet_MODEL:
-    NAME: seg_hrnet
+    NAME: hrnet
     NUM_OUTPUTS: 1
     PRETRAINED: 'misc/model/hrnet_w18_small_model_v2.pth'
     ALIGN_CORNERS: 'None'
@@ -75,7 +75,7 @@ MODEL:
         - 144
         FUSE_METHOD: SUM
 MODEL_PARAM:
-  MODEL_PRETRAIN_PATH: "output/model/exp/hpds_eaa_mini_1.pth"
+  MODEL_PRETRAIN_PATH: "output/model/exp/hrnet_w18_YModel_6.pth"
   OPTIM_PATH: "none"
   LrSc_PATH: "none"
 DATASET:
@@ -88,12 +88,12 @@ TRAIN:
   DIST_PORT: 12345
   OPTIM: 'adam'
   current_epoch: 0
-  lr_decay_step: 50
+  lr_decay_step: 40
   lr_decay_gamma: 0.01
   warm_up: 3
   EPOCHS: 400
   BATCH_SIZE: 64
-  LR: 1.0e-3
+  LR: 1.0e-5
   dropout: 0.07
 LOSS_WEIGHT:
   AUX:
@@ -116,5 +116,5 @@ TB:
 SAVE:
   SAVE_GAP: 1
   SAVE_DIR: "./output/model/exp"
-  SAVE_NAME: hpds_eaa_mini_
+  SAVE_NAME: hrnet_w18_YModel_
 

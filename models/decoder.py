@@ -136,9 +136,9 @@ class decoder(nn.Module):
     def forward(self, hms, mask, dp):
         map = torch.cat((hms, dp, mask), dim=1)
         grid_fmaps = self.vit(map)
+        
         Lf = grid_fmaps[:, : self.vNum_in]
         Rf = grid_fmaps[:, self.vNum_in + 1 : -1]
-
         Lf, Rf = self.dual_gcn(Lf, Rf)
 
         scale = {}

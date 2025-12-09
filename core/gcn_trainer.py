@@ -212,11 +212,17 @@ def train_gcn(rank=0, world_size=1, cfg=None, dist_training=False):
             ] = label_list_out
 
             hms, mask, dense = network.encoder(imgTensors_gt)
+            gt_tensors = [dense_gt, mask_gt, hms_gt]
+            dense_input, mask_input, hms_input = [
+                torch.zeros_like(t) if torch.rand(1).item() < 0.01 else t
+                for t in gt_tensors
+            ]
+
             result, paramsDict, handDictList, otherInfo = network.decoder(
-                hms_gt,
-                mask_gt,
+                hms_input,
+                mask_input,
                 torch.cat(
-                    (dense_gt * mask_gt[:, :1], dense_gt * mask_gt[:, 1:]), dim=1
+                    (dense_input * mask_gt[:, :1], dense_input * mask_gt[:, 1:]), dim=1
                 ),
             )
 
@@ -310,26 +316,25 @@ def train_gcn(rank=0, world_size=1, cfg=None, dist_training=False):
                 train_bar.set_description("train, epoch:{}".format(epoch))
                 train_bar.set_postfix(totalLoss=loss.item())
                 epoch_loss.append(loss.item())
-                aux_loss["mask_loss"].append(
-                    aux_lost_dict["mask_loss"].item() * cfg.LOSS_WEIGHT.AUX.MASK
-                )
-                aux_loss["dense_loss"].append(
-                    aux_lost_dict["dense_loss"].item() * cfg.LOSS_WEIGHT.AUX.DENSEPOSE
-                )
-                aux_loss["hms_loss"].append(
-                    aux_lost_dict["hms_loss"].item() * cfg.LOSS_WEIGHT.AUX.HMS
-                )
-                aux_loss["total_loss"].append(aux_lost_dict["total_loss"].item())
+                # aux_loss["mask_loss"].append(
+                #     aux_lost_dict["mask_loss"].item() * cfg.LOSS_WEIGHT.AUX.MASK
+                # )
+                # aux_loss["dense_loss"].append(
+                #     aux_lost_dict["dense_loss"].item() * cfg.LOSS_WEIGHT.AUX.DENSEPOSE
+                # )
+                # aux_loss["hms_loss"].append(
+                #     aux_lost_dict["hms_loss"].item() * cfg.LOSS_WEIGHT.AUX.HMS
+                # )
+                # aux_loss["total_loss"].append(aux_lost_dict["total_loss"].item())
         print(
-            f" + epoch_loss:{np.mean(epoch_loss):.2f},\t + lr:{optimizer.param_groups[0]['lr']}"
+            f" + epoch_loss:{np.mean(epoch_loss):.2f},\t + lr:{optimizer.param_groups[0]['lr']},\t + batch_size:{cfg.TRAIN.BATCH_SIZE}"
         )
 
-        print("aux_lost_dict:")
-        for k, v in aux_loss.items():
-            print(f"\t{k}:{np.mean(v):.2f}", end="")
-        print()
+        # print("aux_lost_dict:")
+        # for k, v in aux_loss.items():
+        #     print(f"\t{k}:{np.mean(v):.2f}", end="")
+        # print()
 
-        # print("+" * 100)
         lr_scheduler.step()
         if (epoch + 1) % cfg.SAVE.SAVE_GAP == 0:
             if rank == 0:  # save checkpoint in main process

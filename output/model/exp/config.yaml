@@ -35,7 +35,7 @@ MODEL:
   - 256
   - 256
   ENCODER_PRETRAIN_PATH: none
-  ENCODER_TYPE: resnet18
+  ENCODER_TYPE: hrnet
   GCN_IN_DIM:
   - 256
   - 192
@@ -46,6 +46,62 @@ MODEL:
   - 96
   - 48
   - 24
+  HRNet_MODEL:
+    ALIGN_CORNERS: null
+    EXTRA:
+      FINAL_CONV_KERNEL: 1
+      STAGE1:
+        BLOCK: BOTTLENECK
+        FUSE_METHOD: SUM
+        NUM_BLOCKS:
+        - 4
+        NUM_CHANNELS:
+        - 64
+        NUM_MODULES: 1
+        NUM_RANCHES: 1
+      STAGE2:
+        BLOCK: BASIC
+        FUSE_METHOD: SUM
+        NUM_BLOCKS:
+        - 4
+        - 4
+        NUM_BRANCHES: 2
+        NUM_CHANNELS:
+        - 18
+        - 36
+        NUM_MODULES: 1
+      STAGE3:
+        BLOCK: BASIC
+        FUSE_METHOD: SUM
+        NUM_BLOCKS:
+        - 4
+        - 4
+        - 4
+        NUM_BRANCHES: 3
+        NUM_CHANNELS:
+        - 18
+        - 36
+        - 72
+        NUM_MODULES: 4
+      STAGE4:
+        BLOCK: BASIC
+        FUSE_METHOD: SUM
+        NUM_BLOCKS:
+        - 4
+        - 4
+        - 4
+        - 4
+        NUM_BRANCHES: 4
+        NUM_CHANNELS:
+        - 18
+        - 36
+        - 72
+        - 144
+        NUM_MODULES: 3
+    NAME: hrnet
+    NUM_CLASSES: 50
+    NUM_OUTPUTS: 1
+    PRETRAINED: misc/model/hrnet_w18_small_model_v2.pth
   IMG_DIMS:
   - 256
   - 128
@@ -55,12 +111,12 @@ MODEL:
   graph_layer_num: 4
 MODEL_PARAM:
   LrSc_PATH: none
-  MODEL_PRETRAIN_PATH: output/model/exp/hpds_eaa_mini_25.pth
+  MODEL_PRETRAIN_PATH: output/model/exp/hrnet_w18_YModel_24.pth
   OPTIM_PATH: none
 SAVE:
   SAVE_DIR: ./output/model/exp
   SAVE_GAP: 1
-  SAVE_NAME: hpds_eaa_mini_
+  SAVE_NAME: hrnet_w18_YModel_
 SEED: 25
 TB:
   SAVE_DIR: ./output/log/exp
@@ -72,7 +128,7 @@ TRAIN:
   LR: 0.001
   OPTIM: adam
   current_epoch: 0
-  dropout: 0.05
-  lr_decay_gamma: 0.1
-  lr_decay_step: 50
+  dropout: 0.07
+  lr_decay_gamma: 0.01
+  lr_decay_step: 40
   warm_up: 3
