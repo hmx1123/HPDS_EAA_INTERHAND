@@ -75,7 +75,7 @@ MODEL:
         - 144
         FUSE_METHOD: SUM
 MODEL_PARAM:
-  MODEL_PRETRAIN_PATH: "output/model/exp/hrnet_w18_YModel_6.pth"
+  MODEL_PRETRAIN_PATH: "output/model/exp/hrnet_w18_YModel_16.pth"
   OPTIM_PATH: "none"
   LrSc_PATH: "none"
 DATASET:
@@ -93,7 +93,7 @@ TRAIN:
   warm_up: 3
   EPOCHS: 400
   BATCH_SIZE: 64
-  LR: 1.0e-5
+  LR: 1.0e-3
   dropout: 0.07
 LOSS_WEIGHT:
   AUX:

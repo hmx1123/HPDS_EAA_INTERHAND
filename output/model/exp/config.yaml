@@ -111,7 +111,7 @@ MODEL:
   graph_layer_num: 4
 MODEL_PARAM:
   LrSc_PATH: none
-  MODEL_PRETRAIN_PATH: output/model/exp/hrnet_w18_YModel_24.pth
+  MODEL_PRETRAIN_PATH: output/model/exp/hrnet_w18_YModel_16.pth
   OPTIM_PATH: none
 SAVE:
   SAVE_DIR: ./output/model/exp

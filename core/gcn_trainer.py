@@ -200,6 +200,9 @@ def train_gcn(rank=0, world_size=1, cfg=None, dist_training=False):
                 mask_gt,
                 dense_gt,
                 hms_gt,
+                mask_in,
+                dense_map_in,
+                hms_in,
                 v2d_l,
                 j2d_l,
                 v2d_r,
@@ -212,17 +215,18 @@ def train_gcn(rank=0, world_size=1, cfg=None, dist_training=False):
             ] = label_list_out
 
             hms, mask, dense = network.encoder(imgTensors_gt)
-            gt_tensors = [dense_gt, mask_gt, hms_gt]
-            dense_input, mask_input, hms_input = [
-                torch.zeros_like(t) if torch.rand(1).item() < 0.01 else t
-                for t in gt_tensors
-            ]
+            # gt_tensors = [dense_gt, mask_gt, hms_gt]
+            # dense_input, mask_input, hms_input = [
+            #     torch.zeros_like(t) if torch.rand(1).item() < 0.01 else t
+            #     for t in gt_tensors
+            # ]
 
             result, paramsDict, handDictList, otherInfo = network.decoder(
-                hms_input,
-                mask_input,
+                hms_in,
+                mask_in,
                 torch.cat(
-                    (dense_input * mask_gt[:, :1], dense_input * mask_gt[:, 1:]), dim=1
+                    (dense_map_in * mask_gt[:, :1], dense_map_in * mask_gt[:, 1:]),
+                    dim=1,
                 ),
             )
 

@@ -151,10 +151,9 @@ class decoder(nn.Module):
         temp = self.avg_head(temp)
         scale["right"] = temp[:, 0]
         trans2d["right"] = temp[:, 1:]
+        paramsDict = {"scale": scale, "trans2d": trans2d}
 
         handDictList = []
-
-        paramsDict = {"scale": scale, "trans2d": trans2d}
         verts3d = {"left": self.coord_avg_head(Lf), "right": self.coord_avg_head(Rf)}
         verts2d = {}
         result = {"verts3d": {}, "verts2d": {}}
