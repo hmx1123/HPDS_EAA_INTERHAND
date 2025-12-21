@@ -197,32 +197,41 @@ class HRNet(nn.Module):
         self,
         cfg=None,
         handNum=2,
-        heatmapDim=21,
     ):
         super(HRNet, self).__init__()
+
+        self.HRNet_OUTPUT = cfg.HRNet_OUTPUT
+        self.handNum = handNum
+        
+        cfg.NUM_CLASSES = sum(
+            [
+                21 * self.handNum if "hms" in self.HRNet_OUTPUT else 0,
+                3 * self.handNum if "dense" in self.HRNet_OUTPUT else 0,
+                self.handNum if "mask" in self.HRNet_OUTPUT else 0,
+            ]
+        )
+
         from models.modules.hrnet import get_model
 
         self.model = get_model(cfg)
-        self.handNum = handNum
-        self.heatmapDim = heatmapDim
 
     def forward(self, x):
         fmaps = self.model(x)
-        hms = fmaps[:, : self.heatmapDim * self.handNum]
-        # hms=gaussian_nms(hms)
-        dp = fmaps[
-            :,
-            self.heatmapDim * self.handNum : self.heatmapDim * self.handNum
-            + 3 * self.handNum,
-        ]
-        mask = fmaps[
-            :,
-            self.heatmapDim * self.handNum
-            + 3 * self.handNum : self.heatmapDim * self.handNum
-            + 3 * self.handNum
-            + self.handNum,
-        ]
-        return hms, mask, dp
+
+        idx = 0
+        maps_dict={}
+
+        if "hms" in self.HRNet_OUTPUT:
+            hms = fmaps[:, idx : (idx := idx + 21 * self.handNum)]
+            maps_dict['hms']=hms
+        if "mask" in self.HRNet_OUTPUT:
+            mask = fmaps[:, idx : (idx := idx + self.handNum)]
+            maps_dict['mask']=mask
+        if "dense" in self.HRNet_OUTPUT:
+            dp = fmaps[:, idx : (idx := idx + 3 * self.handNum)]
+            maps_dict['dense']=dp
+
+        return maps_dict
 
 
 def load_encoder(cfg):
@@ -243,7 +252,6 @@ def load_encoder(cfg):
         encoder = HRNet(
             cfg=cfg.MODEL.HRNet_MODEL,
             handNum=2,
-            heatmapDim=21,
         )
 
     return encoder

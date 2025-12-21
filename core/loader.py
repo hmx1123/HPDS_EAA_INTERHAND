@@ -78,11 +78,20 @@ class handDataset(Dataset):
                 # ToTensorV2(),
             ]
         )
+
         def mask_image(t, **kwargs):
-            return torch.zeros_like(t)
+            return np.zeros_like(t)
+
         self.mask_transform = A.Compose(
             [
-                A.Lambda(image=mask_image, p=0.3),  # 亮度反转
+                A.CoarseDropout(
+                    num_holes_range=(1, 3),
+                    hole_height_range=(2, 8),
+                    hole_width_range=(2, 8),
+                    fill="random_uniform",
+                    p=0.3,
+                ),
+                # A.Lambda(image=mask_image, p=0.3),
             ]
         )
 
@@ -177,11 +186,12 @@ class handDataset(Dataset):
 
         # to torch tensor
         dense_map = cv.resize(dense_map, (self.aux_size, self.aux_size))
-        dense_map_in=self.mask_transform(image=dense_map)
+        # dense_map_in = self.mask_transform(image=dense_map)
+        # dense_map_in = dense_map_in["image"]
+        # dense_map_in = torch.tensor(dense_map_in, dtype=torch.float32) / 255
+        # dense_map_in = dense_map_in.permute(2, 0, 1)
         dense_map = torch.tensor(dense_map, dtype=torch.float32) / 255
         dense_map = dense_map.permute(2, 0, 1)
-        dense_map_in = torch.tensor(dense_map_in, dtype=torch.float32) / 255
-        dense_map_in = dense_map_in.permute(2, 0, 1)
 
         mask = cv.resize(mask, (self.aux_size, self.aux_size))
         ret, mask = cv.threshold(mask, 127, 255, cv.THRESH_BINARY)
@@ -189,11 +199,12 @@ class handDataset(Dataset):
         mask = mask[..., 1:]
         if flip:
             mask = mask[..., [1, 0]]
-        mask_in=self.mask_transform(image=mask)
+        # mask_in = self.mask_transform(image=mask)
+        # mask_in = mask_in["image"]
+        # mask_in = torch.tensor(mask_in, dtype=torch.float32)
+        # mask_in = mask_in.permute(2, 0, 1)
         mask = torch.tensor(mask, dtype=torch.float32)
         mask = mask.permute(2, 0, 1)
-        mask_in = torch.tensor(mask_in, dtype=torch.float32)
-        mask_in = mask_in.permute(2, 0, 1)
 
         for i in range(len(hms)):
             hms[i] = cv.resize(hms[i], (self.aux_size, self.aux_size))
@@ -201,14 +212,15 @@ class handDataset(Dataset):
         if flip:
             idx = [i + 21 for i in range(21)] + [i for i in range(21)]
             hms = hms[..., idx]
-        hms_in=self.mask_transform(image=hms)
+        # hms_in = self.mask_transform(image=hms)
+        # hms_in = hms_in["image"]
+        # hms_in = torch.tensor(hms_in, dtype=torch.float32) / 255
+        # hms_in = hms_in.permute(2, 0, 1)
         hms = torch.tensor(hms, dtype=torch.float32) / 255
         hms = hms.permute(2, 0, 1)
-        hms_in = torch.tensor(hms_in, dtype=torch.float32) / 255
-        hms_in = hms_in.permute(2, 0, 1)
 
-        img = self.transform(image=img)
-        img = img["image"]
+        # img = self.transform(image=img)
+        # img = img["image"]
 
         # combined_img = np.hstack((img, img_trans))
         # plt.imshow(combined_img)
@@ -265,9 +277,9 @@ class handDataset(Dataset):
             mask,
             dense_map,
             hms,
-            mask_in,
-            dense_map_in,
-            hms_in,
+            # mask_in,
+            # dense_map_in,
+            # hms_in,
             v2d_l,
             j2d_l,
             v2d_r,

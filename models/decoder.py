@@ -37,6 +37,8 @@ def weights_init(layer):
 class decoder(nn.Module):
     def __init__(
         self,
+        map_dim=50,
+        vit_dim=256,
         gcn_in_dim=[256, 128, 128],
         gcn_out_dim=[128, 128, 64],
         graph_k=2,
@@ -45,7 +47,6 @@ class decoder(nn.Module):
         right_graph_dict={},
         left_mesh_dict={},
         right_mesh_dict={},
-        adj_graph=None,
         vertex_num=778,
         dense_coor=None,
         num_attn_heads=4,
@@ -89,12 +90,11 @@ class decoder(nn.Module):
             image_size=64,
             patch_size=8,
             num_classes=self.gcn_in_dim[0],
-            dim=256,
+            dim=vit_dim,
             depth=6,
-            heads=num_attn_heads,
-            mlp_dim=256,
-            channels=42 + 6 + 2,
-            adj_mask=adj_graph,
+            heads=vit_dim // 64,
+            mlp_dim=vit_dim // 2,
+            channels=map_dim,
         )
 
         self.dual_gcn = DualGraph(
@@ -114,8 +114,11 @@ class decoder(nn.Module):
 
         self.unsample_layer = nn.Linear(self.vNum_out, self.vNum_mano, bias=False)
 
-        self.avg_head = nn.Linear(256, 3)
-        self.coord_avg_head = nn.AvgPool1d(kernel_size=8, stride=8)
+        self.avg_head = nn.Linear(self.gcn_in_dim[0], 3)
+        self.coord_avg_head = nn.AvgPool1d(
+            kernel_size=self.gcn_out_dim[-1] // 3, stride=self.gcn_out_dim[-1] // 3
+        )
+        self.coord_head = nn.Linear(self.gcn_out_dim[-1], 3)
 
         self.graph_upsample = nn.Upsample(size=1008)
 
@@ -133,10 +136,11 @@ class decoder(nn.Module):
     def get_upsample_weight(self):
         return self.unsample_layer.weight.data
 
-    def forward(self, hms, mask, dp):
-        map = torch.cat((hms, dp, mask), dim=1)
+    def forward(self, Map):
+        map = torch.cat([v for _, v in Map.items()], dim=1)
+
         grid_fmaps = self.vit(map)
-        
+
         Lf = grid_fmaps[:, : self.vNum_in]
         Rf = grid_fmaps[:, self.vNum_in + 1 : -1]
         Lf, Rf = self.dual_gcn(Lf, Rf)
@@ -154,7 +158,7 @@ class decoder(nn.Module):
         paramsDict = {"scale": scale, "trans2d": trans2d}
 
         handDictList = []
-        verts3d = {"left": self.coord_avg_head(Lf), "right": self.coord_avg_head(Rf)}
+        verts3d = {"left": self.coord_head(Lf), "right": self.coord_head(Rf)}
         verts2d = {}
         result = {"verts3d": {}, "verts2d": {}}
         for hand_type in ["left", "right"]:
@@ -195,6 +199,7 @@ class decoder(nn.Module):
                 otherInfo["verts2d_MANO_list"][hand_type].append(
                     self.converter[hand_type].GCN_to_vert(v)
                 )
+        otherInfo.update(Map)
 
         return result, paramsDict, handDictList, otherInfo
 
@@ -226,6 +231,8 @@ def load_decoder(cfg):
     #     graphs_adj_128x128 = pickle.load(file)
 
     model = decoder(
+        map_dim=cfg.MODEL.HRNet_MODEL.NUM_CLASSES,
+        vit_dim=cfg.MODEL.VIT_DIM,
         gcn_in_dim=cfg.MODEL.GCN_IN_DIM,
         gcn_out_dim=cfg.MODEL.GCN_OUT_DIM,
         graph_k=cfg.MODEL.graph_k,
@@ -236,7 +243,6 @@ def load_decoder(cfg):
         right_graph_dict=right_graph_dict,
         left_mesh_dict=left_mesh_dict,
         right_mesh_dict=right_mesh_dict,
-        adj_graph=None,
         num_attn_heads=16,
         upsample_weight=upsample_weight,
         dropout=cfg.TRAIN.dropout,

@@ -261,89 +261,93 @@ def calc_loss_GCN(
 ):
 
     aux_lost_dict = {}
-    aux_lost_dict = calc_aux_loss(cfg, graph_loss_left, otherInfo, mask, dense, hms)
+    if {'hms', 'dense', 'mask'}.issubset(otherInfo):
+        aux_lost_dict = calc_aux_loss(cfg, graph_loss_left, otherInfo, mask, dense, hms)
 
     v3d_r = v3d_r + root_rel.unsqueeze(1)
     j3d_r = j3d_r + root_rel.unsqueeze(1)
 
     v2dList = []
     v3dList = []
-    for i in range(len(handDictList)):
-        v2dList.append(handDictList[i]["verts2d"]["left"])
-        v3dList.append(handDictList[i]["verts3d"]["left"])
-    mano_loss_dict_left, coarsen_loss_dict_left = graph_loss_left.calc_loss(
-        converter_left,
-        v3d_l,
-        v2d_l,
-        result["verts3d"]["left"],
-        result["verts2d"]["left"],
-        v3dList,
-        v2dList,
-        img_size,
-    )
-
-    v2dList = []
-    v3dList = []
-    for i in range(len(handDictList)):
-        v2dList.append(handDictList[i]["verts2d"]["right"])
-        v3dList.append(handDictList[i]["verts3d"]["right"])
-    mano_loss_dict_right, coarsen_loss_dict_right = graph_loss_right.calc_loss(
-        converter_right,
-        v3d_r,
-        v2d_r,
-        result["verts3d"]["right"],
-        result["verts2d"]["right"],
-        v3dList,
-        v2dList,
-        img_size,
-    )
-
     mano_loss_dict = {}
-    for k in mano_loss_dict_left.keys():
-        mano_loss_dict[k] = (mano_loss_dict_left[k] + mano_loss_dict_right[k]) / 2
-
     coarsen_loss_dict = {}
-    for k in coarsen_loss_dict_left.keys():
-        coarsen_loss_dict[k] = []
-        for i in range(len(coarsen_loss_dict_left[k])):
-            coarsen_loss_dict[k].append(
-                (coarsen_loss_dict_left[k][i] + coarsen_loss_dict_right[k][i]) / 2
+    if len(handDictList) != 0 and len(result) != 0:
+        for i in range(len(handDictList)):
+            v2dList.append(handDictList[i]["verts2d"]["left"])
+            v3dList.append(handDictList[i]["verts3d"]["left"])
+        mano_loss_dict_left, coarsen_loss_dict_left = graph_loss_left.calc_loss(
+            converter_left,
+            v3d_l,
+            v2d_l,
+            result["verts3d"]["left"],
+            result["verts2d"]["left"],
+            v3dList,
+            v2dList,
+            img_size,
+        )
+
+        v2dList = []
+        v3dList = []
+        for i in range(len(handDictList)):
+            v2dList.append(handDictList[i]["verts2d"]["right"])
+            v3dList.append(handDictList[i]["verts3d"]["right"])
+        mano_loss_dict_right, coarsen_loss_dict_right = graph_loss_right.calc_loss(
+            converter_right,
+            v3d_r,
+            v2d_r,
+            result["verts3d"]["right"],
+            result["verts2d"]["right"],
+            v3dList,
+            v2dList,
+            img_size,
+        )
+        
+        for k in mano_loss_dict_left.keys():
+            mano_loss_dict[k] = (mano_loss_dict_left[k] + mano_loss_dict_right[k]) / 2
+
+        for k in coarsen_loss_dict_left.keys():
+            coarsen_loss_dict[k] = []
+            for i in range(len(coarsen_loss_dict_left[k])):
+                coarsen_loss_dict[k].append(
+                    (coarsen_loss_dict_left[k][i] + coarsen_loss_dict_right[k][i]) / 2
+                )
+
+        cfg = cfg.LOSS_WEIGHT
+        alpha = 0 if epoch < cfg.GRAPH.NORM.NORM_EPOCH else 1
+
+        if upsample_weight is not None:
+            mano_loss_dict["upsample_norm_loss"] = graph_loss_left.upsample_weight_loss(
+                upsample_weight
+            )
+        else:
+            mano_loss_dict["upsample_norm_loss"] = torch.zeros_like(
+                mano_loss_dict["vert3d_loss"]
             )
 
-    cfg = cfg.LOSS_WEIGHT
-    alpha = 0 if epoch < cfg.GRAPH.NORM.NORM_EPOCH else 1
+        mano_loss = (
+            0
+            + cfg.DATA.LABEL_3D * mano_loss_dict["vert3d_loss"]
+            + cfg.DATA.LABEL_2D * mano_loss_dict["vert2d_loss"]
+            + cfg.DATA.LABEL_3D * mano_loss_dict["joint_loss"]
+            + cfg.GRAPH.NORM.NORMAL * mano_loss_dict["norm_loss"]
+            + alpha * cfg.GRAPH.NORM.EDGE * mano_loss_dict["edge_loss"]
+        )
 
-    if upsample_weight is not None:
-        mano_loss_dict["upsample_norm_loss"] = graph_loss_left.upsample_weight_loss(
-            upsample_weight
+        coarsen_loss = 0
+        for i in range(len(coarsen_loss_dict["v3d_loss"])):
+            coarsen_loss = (
+                coarsen_loss
+                + cfg.DATA.LABEL_3D * coarsen_loss_dict["v3d_loss"][i]
+                + cfg.DATA.LABEL_2D * coarsen_loss_dict["v2d_loss"][i]
+            )
+
+        total_loss = (
+            mano_loss
+            + coarsen_loss
+            + cfg.NORM.UPSAMPLE * mano_loss_dict["upsample_norm_loss"]
         )
     else:
-        mano_loss_dict["upsample_norm_loss"] = torch.zeros_like(
-            mano_loss_dict["vert3d_loss"]
-        )
-
-    mano_loss = (
-        0
-        + cfg.DATA.LABEL_3D * mano_loss_dict["vert3d_loss"]
-        + cfg.DATA.LABEL_2D * mano_loss_dict["vert2d_loss"]
-        + cfg.DATA.LABEL_3D * mano_loss_dict["joint_loss"]
-        + cfg.GRAPH.NORM.NORMAL * mano_loss_dict["norm_loss"]
-        + alpha * cfg.GRAPH.NORM.EDGE * mano_loss_dict["edge_loss"]
-    )
-
-    coarsen_loss = 0
-    for i in range(len(coarsen_loss_dict["v3d_loss"])):
-        coarsen_loss = (
-            coarsen_loss
-            + cfg.DATA.LABEL_3D * coarsen_loss_dict["v3d_loss"][i]
-            + cfg.DATA.LABEL_2D * coarsen_loss_dict["v2d_loss"][i]
-        )
-
-    total_loss = (
-        mano_loss
-        + coarsen_loss
-        + cfg.NORM.UPSAMPLE * mano_loss_dict["upsample_norm_loss"]
-    )
+        total_loss = 0
 
     if "total_loss" in aux_lost_dict:
         total_loss = total_loss + aux_lost_dict["total_loss"]

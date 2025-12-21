@@ -74,7 +74,7 @@ def train_gcn(rank=0, world_size=1, cfg=None, dist_training=False):
     # print('local rank {}: init model, done'.format(rank))
 
     # load optimizer
-    optim_params = list(filter(lambda p: p.requires_grad, network.parameters()))
+    optim_params = list(filter(lambda p: p.requires_grad, network.decoder.parameters()))
     if cfg.TRAIN.OPTIM == "adam":
         if dist_training:
             optimizer = ZeroRedundancyOptimizer(
@@ -109,7 +109,7 @@ def train_gcn(rank=0, world_size=1, cfg=None, dist_training=False):
     lr_scheduler = StepLR_withWarmUp(
         optimizer,
         last_epoch=-1 if cfg.TRAIN.current_epoch == 0 else cfg.TRAIN.current_epoch,
-        init_lr=1e-3 * cfg.TRAIN.LR,
+        init_lr=cfg.TRAIN.LR,
         warm_up_epoch=cfg.TRAIN.warm_up,
         gamma=cfg.TRAIN.lr_decay_gamma,
         step_size=cfg.TRAIN.lr_decay_step,
@@ -200,9 +200,9 @@ def train_gcn(rank=0, world_size=1, cfg=None, dist_training=False):
                 mask_gt,
                 dense_gt,
                 hms_gt,
-                mask_in,
-                dense_map_in,
-                hms_in,
+                # mask_in,
+                # dense_in,
+                # hms_in,
                 v2d_l,
                 j2d_l,
                 v2d_r,
@@ -214,25 +214,24 @@ def train_gcn(rank=0, world_size=1, cfg=None, dist_training=False):
                 root_rel,
             ] = label_list_out
 
-            hms, mask, dense = network.encoder(imgTensors_gt)
-            # gt_tensors = [dense_gt, mask_gt, hms_gt]
-            # dense_input, mask_input, hms_input = [
-            #     torch.zeros_like(t) if torch.rand(1).item() < 0.01 else t
-            #     for t in gt_tensors
-            # ]
+            # Map = network.encoder(imgTensors_gt)
 
-            result, paramsDict, handDictList, otherInfo = network.decoder(
-                hms_in,
-                mask_in,
-                torch.cat(
-                    (dense_map_in * mask_gt[:, :1], dense_map_in * mask_gt[:, 1:]),
-                    dim=1,
+            result = {}
+            paramsDict = {}
+            handDictList = {}
+            otherInfo = {}
+            Map_gt = {
+                "hms": hms_gt,
+                "mask": mask_gt,
+                "dense": torch.cat(
+                    (dense_gt * mask_gt[:, :1], dense_gt * mask_gt[:, 1:]), dim=1
                 ),
-            )
+            }
+            result, paramsDict, handDictList, otherInfo = network.decoder(Map_gt)
 
-            otherInfo["hms"] = hms
-            otherInfo["mask"] = mask
-            otherInfo["dense"] = dense
+            # otherInfo["hms"] = hms
+            # otherInfo["mask"] = mask
+            # otherInfo["dense"] = dense
 
             if cfg.MODEL.freeze_upsample:
                 upsample_weight = None

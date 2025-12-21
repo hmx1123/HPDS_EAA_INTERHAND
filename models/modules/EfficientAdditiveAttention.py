@@ -43,7 +43,7 @@ class EfficientAdditiveAttention(nn.Module):
         self.drop_path = nn.Dropout(dropout) if dropout > 0.0 else nn.Identity()
         self.position_emb = nn.Parameter(torch.zeros(in_dims))
 
-    def forward(self, x, adj_mask=None):
+    def forward(self, x):
         x = x + self.position_emb
 
         query = self.to_query(x)
@@ -99,9 +99,9 @@ class Transformer(nn.Module):
                 )
             )
 
-    def forward(self, x, adj_mask):
+    def forward(self, x):
         for attn, ff in self.layers:
-            x = attn(x, adj_mask) + x
+            x = attn(x) + x
             x = ff(x)
         return self.norm(x)
 
@@ -118,7 +118,6 @@ class EAViT(nn.Module):
         heads,
         mlp_dim,
         channels=3,
-        adj_mask=None,
     ):
         super().__init__()
         image_height, image_width = pair(image_size)
@@ -154,8 +153,6 @@ class EAViT(nn.Module):
 
         self.linear_head = nn.Linear(dim, num_classes)
 
-        self.adj_mask = adj_mask
-
     def forward(self, img):
         device = img.device
 
@@ -163,7 +160,7 @@ class EAViT(nn.Module):
         x += self.pos_embedding.to(device, dtype=x.dtype)
         x = torch.cat((x, x), dim=1)
 
-        x = self.transformer(x, self.adj_mask)
+        x = self.transformer(x)
         # x = x.mean(dim = 1)
 
         x = self.to_latent(x)

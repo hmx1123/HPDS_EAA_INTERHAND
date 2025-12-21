@@ -98,6 +98,10 @@ MODEL:
         - 72
         - 144
         NUM_MODULES: 3
+    HRNet_OUTPUT:
+    - hms
+    - dense
+    - mask
     NAME: hrnet
     NUM_CLASSES: 50
     NUM_OUTPUTS: 1
@@ -106,23 +110,24 @@ MODEL:
   - 256
   - 128
   - 64
+  VIT_DIM: 256
   freeze_upsample: true
   graph_k: 2
   graph_layer_num: 4
 MODEL_PARAM:
   LrSc_PATH: none
-  MODEL_PRETRAIN_PATH: output/model/exp/hrnet_w18_YModel_16.pth
+  MODEL_PRETRAIN_PATH: output/model/exp/hrnet_w18_YModel_vit512_gcn256_24_22.pth
   OPTIM_PATH: none
 SAVE:
   SAVE_DIR: ./output/model/exp
   SAVE_GAP: 1
-  SAVE_NAME: hrnet_w18_YModel_
+  SAVE_NAME: hrnet_w18_YModel_vit256_gcn256_24_
 SEED: 25
 TB:
   SAVE_DIR: ./output/log/exp
   SHOW_GAP: 200
 TRAIN:
-  BATCH_SIZE: 64
+  BATCH_SIZE: 128
   DIST_PORT: 12345
   EPOCHS: 400
   LR: 0.001
@@ -130,5 +135,5 @@ TRAIN:
   current_epoch: 0
   dropout: 0.07
   lr_decay_gamma: 0.01
-  lr_decay_step: 40
+  lr_decay_step: 50
   warm_up: 3
