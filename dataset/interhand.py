@@ -203,7 +203,7 @@ def cut_inter_img(loader, save_path, split):
                         img_size=IMG_SIZE,
                     )
                     cv.imwrite(
-                        osp.join(save_path, split, "img", "{}.jpg".format(idx)), img
+                        os.join(save_path, split, "img", "{}.jpg".format(idx)), img
                     )
 
                     data_info = {}

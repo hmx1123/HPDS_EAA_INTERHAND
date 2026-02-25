@@ -17,7 +17,7 @@ from dataset.dataset_utils import IMG_SIZE
 
 
 class InterRender:
-    def __init__(self, cfg_path, model_path, input_size=IMG_SIZE, render_size=512):
+    def __init__(self, cfg_path, input_size=IMG_SIZE, render_size=512):
         self.input_size = input_size
         self.render_size = render_size
         self.renderer = mano_two_hands_renderer(img_size=render_size, device="cuda")
@@ -25,14 +25,14 @@ class InterRender:
         self.right_faces = self.renderer.mano["right"].get_faces()
 
         self.model = load_model(cfg_path)
-        state = torch.load(model_path, map_location="cpu")
-        try:
-            self.model.load_state_dict(state, strict=False)
-        except:
-            state2 = {}
-            for k, v in state.items():
-                state2[k[7:]] = v
-            self.model.load_state_dict(state2, strict=False)
+        # state = torch.load(model_path, map_location="cpu")
+        # try:
+        #     self.model.load_state_dict(state, strict=False)
+        # except:
+        #     state2 = {}
+        #     for k, v in state.items():
+        #         state2[k[7:]] = v
+        #     self.model.load_state_dict(state2, strict=False)
         self.model.eval()
         self.model.cuda()
 

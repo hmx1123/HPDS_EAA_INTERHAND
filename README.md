@@ -1,6 +1,6 @@
 # HPDS_EAA_INTERHAND
 
-This repository contains a pytorch implementation of "__Efficient Visual Attention-Based Lightweight 3D Hand Reconstruction.__" 
+This repository contains a pytorch implementation of "__Research on 3D reconstruction of bimanual Interaction under Heat map constraint。__" 
 
 $Minxuan\; Hu^{1*}, Wenji\; Yang^{2*}$
 
@@ -33,7 +33,7 @@ $^{2}\;School\;of\;Software,\;Jiangxi\;Agricultural\;University,\;Jiangxi\;33004
 - gradio
 
 ### Data Preparation
-1. Download necessary assets [misc.tar.gz](https://github.com/hmx1123/Efficient-Visual-Attention-Based-Lightweight-3D-Hand-Reconstruction./releases/tag/misc.tar.gz) and unzip it.
+1. Download necessary assets [misc.tar.gz](https://github.com/hmx1123/HPDS_EAA_INTERHAND/releases/tag/misc.tar.gz) and unzip it.
 2. Download InterHand2.6M dataset and unzip it.
 3. Process the dataset by the code provided by [IntagHand](https://github.com/Dw1010/IntagHand)
 
@@ -81,7 +81,7 @@ Results will be stored in folder `./demo`
 ```
 python apps/gradio_demo.py 
 ```
-![p](demo/image.png)
+![p](demo/gradio_demo.png)
 
 **Noted**: We don't operate hand detection, so hands are expected to be roughly at the center of image and take approximately 70-90% of the image area.
 
@@ -129,13 +129,13 @@ You would get following output :
 
 ```
 joint mean error:
-    left: 9.097068570554256 mm
-    right: 8.561082184314728 mm
-    all: 8.829075377434492 mm
+    left: 5.40 mm
+    right: 6.48 mm
+    all: 5.94 mm
 vert mean error:
-    left: 9.311042726039886 mm
-    right: 8.786577731370926 mm
-    all: 9.048810228705406 mm
+    left: 6.23 mm
+    right: 7.59 mm
+    all: 6.91 mm
 ```
 
 ## Acknowledgements

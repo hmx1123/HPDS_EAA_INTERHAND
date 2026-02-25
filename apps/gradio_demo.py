@@ -15,8 +15,8 @@ from pytorch_lightning import seed_everything
 from utils.utils import get_mano_path, imgUtils
 import cv2 as cv
 
-model = InterRender(cfg_path='misc/model/config.yaml',
-                    model_path="output/model/exp/hpds_eaa_ppp_best.pth",
+model = InterRender(cfg_path='output/model/exp/hrnet_w18_YModel_vit512_gcn256_24_hms_only/hrnet_w18_YModel_vit512_gcn256_24_hms_only.yaml',
+                    model_path="output/model/exp/hrnet_w18_YModel_vit512_gcn256_24_hms_only/hrnet_w18_YModel_vit512_gcn256_24_hms_only_15.pth",
                     render_size=256)
 
 

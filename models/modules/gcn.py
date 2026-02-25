@@ -98,14 +98,18 @@ class GCN_ResBlock(nn.Module):
         # x : B x V x f
         assert x.shape[-1] == self.in_dim
 
+        # # no_gcn
         x1 = F.relu(self.norm1(x))
         x1 = graph_conv_cheby(x, self.fc1, self.graph_L, K=self.graph_k)
         x1 = F.relu(self.norm2(x1))
         x1 = graph_conv_cheby(x1, self.fc2, self.graph_L, K=self.graph_k)
         x1 = self.dropout(x1)
+        
         x2 = self.shortcut(x)
+        
+        x2 = x1 + x2
 
-        return self.norm3(x1 + x2)
+        return self.norm3(x2)
 
 
 class GraphLayer(nn.Module):

@@ -1,33 +1,24 @@
+from models.model import load_model
+from torch.distributed.optim import ZeroRedundancyOptimizer
+from core.Loss import GraphLoss, calc_loss_GCN
+from core.loader import handDataset
+from utils.utils import get_mano_path
+from utils.DataProvider import DataProvider
+from utils.lr_sc import StepLR_withWarmUp
+from torch.nn.parallel import DistributedDataParallel as DDP
+import torch.distributed as dist
+from transformers import Adafactor
+from dataset.dataset_utils import IMG_SIZE
+import random
+import pickle
+from tqdm import tqdm
+import numpy as np
+import torch
 import sys
 import os
-from tkinter.messagebox import NO
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-import torch
-import json
-import cv2 as cv
-import numpy as np
-from torch.utils.tensorboard import SummaryWriter
-from tqdm import tqdm
-import pickle
-import random
-from transformers import Adafactor
-from torch.utils.data import DataLoader
-from torch.utils.data.distributed import DistributedSampler
-import torch.distributed as dist
-from torch.nn.parallel import DistributedDataParallel as DDP
-from utils.tb_utils import tbUtils
-from utils.lr_sc import StepLR_withWarmUp
-from utils.DataProvider import DataProvider
-from utils.vis_utils import mano_two_hands_renderer
-from utils.utils import get_mano_path
-from core.loader import handDataset
-from core.Loss import GraphLoss, calc_loss_GCN
-from core.vis_train import tb_vis_train_gcn
-from dataset.dataset_utils import IMG_SIZE, BLUR_KERNEL
-from dataset.inference import get_final_preds2
-from torch.distributed.optim import ZeroRedundancyOptimizer
-from models.model import load_model
+sys.path.insert(0, os.path.abspath(
+    os.path.join(os.path.dirname(__file__), "..")))
 
 
 def freeze_model(model):
@@ -35,7 +26,7 @@ def freeze_model(model):
         params.requires_grad = False
 
 
-def train_gcn(rank=0, world_size=1, cfg=None, dist_training=False):
+def train_gcn(rank=0, world_size=1, cfg=None, dist_training=False, train_modules='all'):
     if dist_training:
         os.environ["MASTER_ADDR"] = "localhost"
         os.environ["MASTER_PORT"] = str(cfg.TRAIN.DIST_PORT)
@@ -57,9 +48,6 @@ def train_gcn(rank=0, world_size=1, cfg=None, dist_training=False):
     network = load_model(cfg)
     network.to(rank)
 
-    if cfg.MODEL.freeze_upsample:
-        freeze_model(network.decoder.unsample_layer)
-
     converter = {}
     for hand_type in ["left", "right"]:
         converter[hand_type] = network.decoder.converter[hand_type]
@@ -74,7 +62,15 @@ def train_gcn(rank=0, world_size=1, cfg=None, dist_training=False):
     # print('local rank {}: init model, done'.format(rank))
 
     # load optimizer
-    optim_params = list(filter(lambda p: p.requires_grad, network.decoder.parameters()))
+    if train_modules == 'encoder':
+        params_source = network.encoder.parameters()
+    elif train_modules == 'decoder':
+        params_source = network.decoder.parameters()
+    elif train_modules == 'all':
+        params_source = network.encoder.parameters()
+
+    optim_params = [p for p in params_source if p.requires_grad]
+
     if cfg.TRAIN.OPTIM == "adam":
         if dist_training:
             optimizer = ZeroRedundancyOptimizer(
@@ -92,7 +88,8 @@ def train_gcn(rank=0, world_size=1, cfg=None, dist_training=False):
                 relative_step=False,
             )
         else:
-            optimizer = Adafactor(optim_params, lr=cfg.TRAIN.LR, relative_step=False)
+            optimizer = Adafactor(
+                optim_params, lr=cfg.TRAIN.LR, relative_step=False)
 
     elif cfg.TRAIN.OPTIM == "rms":
         if dist_training:
@@ -117,12 +114,12 @@ def train_gcn(rank=0, world_size=1, cfg=None, dist_training=False):
     )
     # print('local rank {}: init lr_scheduler, done'.format(rank))
 
-    if rank == 0:
-        # tensorboard
-        writer = SummaryWriter(cfg.TB.SAVE_DIR)
-        renderer = mano_two_hands_renderer(
-            img_size=IMG_SIZE, device="cuda:{}".format(rank)
-        )
+    # if rank == 0:
+    #     # tensorboard
+    #     writer = SummaryWriter(cfg.TB.SAVE_DIR)
+    #     renderer = mano_two_hands_renderer(
+    #         img_size=IMG_SIZE, device="cuda:{}".format(rank)
+    #     )
 
     # --------------------------
     # | 2. load dataset & Loss |
@@ -163,7 +160,8 @@ def train_gcn(rank=0, world_size=1, cfg=None, dist_training=False):
         J_regressor = torch.sparse_coo_tensor(
             i.t(), v, torch.Size([16, 778])
         ).to_dense()
-        Loss[hand_type] = GraphLoss(J_regressor, manoData["f"], level=4, device=rank)
+        Loss[hand_type] = GraphLoss(
+            J_regressor, manoData["f"], level=4, device=rank)
         # device='cuda:{}'.format(rank))
         faces[hand_type] = manoData["f"]
 
@@ -176,15 +174,11 @@ def train_gcn(rank=0, world_size=1, cfg=None, dist_training=False):
     for epoch in range(cfg.TRAIN.current_epoch, cfg.TRAIN.EPOCHS):
         print("+" * 100)
         epoch_loss = []
-        keys = ["mask_loss", "dense_loss", "hms_loss", "total_loss"]
-        aux_loss = {key: [] for key in keys}
         network.train()
         train_bar = range(train_batch_per_epoch)
         if rank == 0:
             train_bar = tqdm(train_bar)
         for bIdx in train_bar:
-
-            total_idx = epoch * train_batch_per_epoch + bIdx
 
             # ------------
             # | training |
@@ -200,9 +194,6 @@ def train_gcn(rank=0, world_size=1, cfg=None, dist_training=False):
                 mask_gt,
                 dense_gt,
                 hms_gt,
-                # mask_in,
-                # dense_in,
-                # hms_in,
                 v2d_l,
                 j2d_l,
                 v2d_r,
@@ -214,32 +205,26 @@ def train_gcn(rank=0, world_size=1, cfg=None, dist_training=False):
                 root_rel,
             ] = label_list_out
 
-            # Map = network.encoder(imgTensors_gt)
-
             result = {}
             paramsDict = {}
             handDictList = {}
             otherInfo = {}
-            Map_gt = {
-                "hms": hms_gt,
-                "mask": mask_gt,
-                "dense": torch.cat(
-                    (dense_gt * mask_gt[:, :1], dense_gt * mask_gt[:, 1:]), dim=1
-                ),
-            }
-            result, paramsDict, handDictList, otherInfo = network.decoder(Map_gt)
+            Maps_dict_gt = {}
 
-            # otherInfo["hms"] = hms
-            # otherInfo["mask"] = mask
-            # otherInfo["dense"] = dense
+            if train_modules == 'decoder':
+                Maps_dict_gt = {
+                    "hms": hms_gt,
+                    "mask": mask_gt,
+                    "dense": torch.cat(
+                        (dense_gt * mask_gt[:, :1], dense_gt * mask_gt[:, 1:]), dim=1
+                    )
+                }
+                result, paramsDict, handDictList, otherInfo = network.decoder(
+                    Maps_dict_gt)
 
-            if cfg.MODEL.freeze_upsample:
-                upsample_weight = None
-            else:
-                if dist_training:
-                    upsample_weight = network.module.decoder.get_upsample_weight()
-                else:
-                    upsample_weight = network.decoder.get_upsample_weight()
+            elif train_modules == 'all':
+                result, paramsDict, handDictList, otherInfo = network(
+                    imgTensors_gt)
 
             loss, aux_lost_dict, mano_loss_dict, coarsen_loss_dict = calc_loss_GCN(
                 cfg,
@@ -265,7 +250,6 @@ def train_gcn(rank=0, world_size=1, cfg=None, dist_training=False):
                 j3d_r,
                 root_rel,
                 img_size=imgTensors_gt.shape[-1],
-                upsample_weight=upsample_weight,
             )
 
             optimizer.zero_grad()
@@ -275,7 +259,7 @@ def train_gcn(rank=0, world_size=1, cfg=None, dist_training=False):
             # ---------------
             # | tensorboard |
             # ---------------
-            if rank == 0:
+            # if rank == 0:
                 #     writer.add_scalar(
                 #         'learning_rate', lr_scheduler.get_lr()[0], total_idx)
                 #     writer.add_scalar('train/total_loss', loss.item(), total_idx)
@@ -316,35 +300,35 @@ def train_gcn(rank=0, world_size=1, cfg=None, dist_training=False):
                 # --------
                 # | tqdm |
                 # --------
-                train_bar.set_description("train, epoch:{}".format(epoch))
-                train_bar.set_postfix(totalLoss=loss.item())
-                epoch_loss.append(loss.item())
-                # aux_loss["mask_loss"].append(
-                #     aux_lost_dict["mask_loss"].item() * cfg.LOSS_WEIGHT.AUX.MASK
-                # )
-                # aux_loss["dense_loss"].append(
-                #     aux_lost_dict["dense_loss"].item() * cfg.LOSS_WEIGHT.AUX.DENSEPOSE
-                # )
-                # aux_loss["hms_loss"].append(
-                #     aux_lost_dict["hms_loss"].item() * cfg.LOSS_WEIGHT.AUX.HMS
-                # )
-                # aux_loss["total_loss"].append(aux_lost_dict["total_loss"].item())
+            train_bar.set_description("train, epoch:{}".format(epoch))
+            train_bar.set_postfix(totalLoss=loss.item())
+            epoch_loss.append(loss.item())
+
         print(
             f" + epoch_loss:{np.mean(epoch_loss):.2f},\t + lr:{optimizer.param_groups[0]['lr']},\t + batch_size:{cfg.TRAIN.BATCH_SIZE}"
         )
 
-        # print("aux_lost_dict:")
-        # for k, v in aux_loss.items():
-        #     print(f"\t{k}:{np.mean(v):.2f}", end="")
-        # print()
-
         lr_scheduler.step()
         if (epoch + 1) % cfg.SAVE.SAVE_GAP == 0:
-            if rank == 0:  # save checkpoint in main process
+            # if rank == 0:  # save checkpoint in main process
+            torch.save(
+                network.decoder.state_dict(),
+                os.path.join(
+                    cfg.SAVE.SAVE_DIR, cfg.SAVE.SAVE_NAME +
+                    f"lr{optimizer.param_groups[0]['lr']}_bs{cfg.TRAIN.BATCH_SIZE}_loss{np.mean(epoch_loss):.2f}_".replace(
+                        '.', 'p').replace('e-', 'en') +
+                    "decoder_" + str(epoch + 1) + ".pth"
+                ),
+            )
+
+            if train_modules == 'all':
                 torch.save(
-                    network.state_dict(),
+                    network.encoder.state_dict(),
                     os.path.join(
-                        cfg.SAVE.SAVE_DIR, cfg.SAVE.SAVE_NAME + str(epoch + 1) + ".pth"
+                        cfg.SAVE.SAVE_DIR, cfg.SAVE.SAVE_NAME + 
+                        f"lr{optimizer.param_groups[0]['lr']}_bs{cfg.TRAIN.BATCH_SIZE}_loss{np.mean(epoch_loss):.2f}_".replace(
+                            '.', 'p').replace('e-', 'en') +
+                        "encoder_" + str(epoch + 1) + ".pth"
                     ),
                 )
 

@@ -260,18 +260,15 @@ def calc_loss_GCN(
     upsample_weight=None,
 ):
 
-    aux_lost_dict = {}
-    if {'hms', 'dense', 'mask'}.issubset(otherInfo):
-        aux_lost_dict = calc_aux_loss(cfg, graph_loss_left, otherInfo, mask, dense, hms)
-
-    v3d_r = v3d_r + root_rel.unsqueeze(1)
-    j3d_r = j3d_r + root_rel.unsqueeze(1)
+    aux_lost_dict = calc_aux_loss(cfg, graph_loss_left, otherInfo, mask, dense, hms)
 
     v2dList = []
     v3dList = []
     mano_loss_dict = {}
     coarsen_loss_dict = {}
     if len(handDictList) != 0 and len(result) != 0:
+        v3d_r = v3d_r + root_rel.unsqueeze(1)
+        j3d_r = j3d_r + root_rel.unsqueeze(1)
         for i in range(len(handDictList)):
             v2dList.append(handDictList[i]["verts2d"]["left"])
             v3dList.append(handDictList[i]["verts3d"]["left"])

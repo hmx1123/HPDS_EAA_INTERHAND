@@ -567,6 +567,6 @@ class HighResolutionNet(nn.Module):
 
 def get_model(cfg, **kwargs):
     model = HighResolutionNet(cfg, **kwargs)
-    model.init_weights(cfg.PRETRAINED)
+    # model.init_weights(cfg.PRETRAINED)
 
     return model

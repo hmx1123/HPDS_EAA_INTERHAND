@@ -14,7 +14,8 @@ MODEL:
   IMG_DIMS: [256, 128, 64]
   GCN_IN_DIM: [256, 192, 96, 48]
   GCN_OUT_DIM: [192, 96, 48, 24]
-  VIT_DIM: 256
+  VIT_DIM: 512
+  HEAD_DIM: 64
   ENCODER_PRETRAIN_PATH: "none"
   freeze_upsample: True
   graph_k: 2
@@ -22,10 +23,10 @@ MODEL:
   HRNet_MODEL:
     NAME: hrnet
     NUM_OUTPUTS: 1
-    PRETRAINED: "misc/model/hrnet_w18_small_model_v2.pth"
+    PRETRAINED: "misc/model/hrnet_ade20k_4312_torch04.pth"
     ALIGN_CORNERS: "None"
     NUM_CLASSES: 50
-    HRNet_OUTPUT: ['hms','dense','mask']
+    HRNet_OUTPUT: ['hms']
     EXTRA:
       FINAL_CONV_KERNEL: 1
       STAGE1:
@@ -45,8 +46,8 @@ MODEL:
           - 4
           - 4
         NUM_CHANNELS:
-          - 18
-          - 36
+          - 48
+          - 96
         FUSE_METHOD: SUM
       STAGE3:
         NUM_MODULES: 4
@@ -57,9 +58,9 @@ MODEL:
           - 4
           - 4
         NUM_CHANNELS:
-          - 18
-          - 36
-          - 72
+          - 48
+          - 96
+          - 192
         FUSE_METHOD: SUM
       STAGE4:
         NUM_MODULES: 3
@@ -71,13 +72,14 @@ MODEL:
           - 4
           - 4
         NUM_CHANNELS:
-          - 18
-          - 36
-          - 72
-          - 144
+          - 48
+          - 96
+          - 192
+          - 384
         FUSE_METHOD: SUM
 MODEL_PARAM:
-  MODEL_PRETRAIN_PATH: "output/model/exp/hrnet_w18_YModel_1.pth"
+  ENCODER_PRETRAIN_PATH: "none"
+  DECODER_PRETRAIN_PATH: "none"
   OPTIM_PATH: "none"
   LrSc_PATH: "none"
 DATASET:
@@ -95,8 +97,9 @@ TRAIN:
   warm_up: 3
   EPOCHS: 400
   BATCH_SIZE: 128
-  LR: 1.0e-7
+  LR: 1.0e-3
   dropout: 0.07
+  train_modules: "all"
 LOSS_WEIGHT:
   AUX:
     DENSEPOSE: 30
@@ -117,5 +120,5 @@ TB:
   SAVE_DIR: "./output/log/exp"
 SAVE:
   SAVE_GAP: 1
-  SAVE_DIR: "./output/model/exp"
-  SAVE_NAME: hrnet_w18_YModel_
+  SAVE_DIR: "none"
+  SAVE_NAME: "none"

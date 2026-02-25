@@ -1,27 +1,24 @@
-import argparse
-import cv2 as cv
-import torch
-import numpy as np
-from skimage.metrics import structural_similarity as ssim
-from tqdm import tqdm
-import torchvision.transforms as transforms
-from torch.utils.data import Dataset
-from torch.utils.data import DataLoader
-from ptflops import get_model_complexity_info
-
 import sys
 import os
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+sys.path.insert(0, os.path.abspath(
+    os.path.join(os.path.dirname(__file__), "..")))
 
+from ptflops import get_model_complexity_info
+from torch.utils.data import DataLoader
+from torch.utils.data import Dataset
+import torchvision.transforms as transforms
+from tqdm import tqdm
+import numpy as np
+import torch
+import cv2 as cv
+import argparse
 from models.model import load_model
 from models.manolayer import ManoLayer
 from utils.config import load_cfg
-from utils.vis_utils import mano_two_hands_renderer
 from utils.utils import get_mano_path
-from dataset.dataset_utils import IMG_SIZE, cut_img
+from dataset.dataset_utils import IMG_SIZE
 from dataset.interhand import fix_shape, InterHand_dataset
-
 
 class Jr:
     def __init__(self, J_regressor, device="cuda"):
@@ -80,7 +77,8 @@ class handDataset(Dataset):
         img, mask, dense, hand_dict = self.dataset[idx]
         img = cv.resize(img, (IMG_SIZE, IMG_SIZE))
         imgTensor = (
-            torch.tensor(cv.cvtColor(img, cv.COLOR_BGR2RGB), dtype=torch.float32) / 255
+            torch.tensor(cv.cvtColor(img, cv.COLOR_BGR2RGB),
+                         dtype=torch.float32) / 255
         )
         imgTensor = imgTensor.permute(2, 0, 1)
         imgTensor = self.normalize_img(imgTensor)
@@ -101,10 +99,13 @@ class handDataset(Dataset):
         hmsTensor = torch.tensor(hms, dtype=torch.float32) / 255
         hmsTensor = hmsTensor.permute(2, 0, 1)
 
-        joints_left_gt = torch.from_numpy(hand_dict["left"]["joints3d"]).float()
+        joints_left_gt = torch.from_numpy(
+            hand_dict["left"]["joints3d"]).float()
         verts_left_gt = torch.from_numpy(hand_dict["left"]["verts3d"]).float()
-        joints_right_gt = torch.from_numpy(hand_dict["right"]["joints3d"]).float()
-        verts_right_gt = torch.from_numpy(hand_dict["right"]["verts3d"]).float()
+        joints_right_gt = torch.from_numpy(
+            hand_dict["right"]["joints3d"]).float()
+        verts_right_gt = torch.from_numpy(
+            hand_dict["right"]["verts3d"]).float()
 
         return (
             imgTensor,
@@ -117,48 +118,64 @@ class handDataset(Dataset):
             verts_right_gt,
         )
 
-def evaluate_heatmaps(gt_heatmaps, pred_heatmaps):
-    """
-    综合评估热图预测结果
-    """
-    results = {}
-    
-    # 逐样本计算
-    mse_list = []
-    ssim_list = []
-    
-    for gt, pred in zip(gt_heatmaps, pred_heatmaps):
-        # 归一化
-        gt = (gt - gt.min()) / (gt.max() - gt.min() + 1e-8)
-        pred = (pred - pred.min()) / (pred.max() - pred.min() + 1e-8)
-        # SSIM
-        ssim_val = ssim(gt, pred, data_range=1.0)
-        ssim_list.append(ssim_val)
-    
-    results = np.mean(ssim_list)
-    
-    return results
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--cfg", type=str, default="utils/defaults.yaml")
-    parser.add_argument("--model", type=str, default="misc/model/interhand.pth")
+    parser.add_argument("--encoder", type=str,
+                        default=None)
+    parser.add_argument("--decoder", type=str,
+                        default=None)
     parser.add_argument("--data_path", type=str)
     parser.add_argument("--bs", type=int, default=64)
     opt = parser.parse_args()
 
     opt.map = False
 
+    if isinstance(opt.cfg, str):
+        cfg = load_cfg(opt.cfg)
+
     network = load_model(opt.cfg)
 
-    state = torch.load(opt.model, map_location="cpu")
-    try:
-        network.load_state_dict(state)
-    except:
-        state2 = {}
-        for k, v in state.items():
-            state2[k[7:]] = v
-        network.load_state_dict(state2)
+    abspath = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+    if opt.encoder:
+        path = os.path.join(abspath, str(opt.encoder))
+        if os.path.exists(path):
+            state = torch.load(path, map_location="cpu")
+            print("load model params from {}".format(path))
+            try:
+                network.encoder.load_state_dict(state, strict=True)
+            except:
+                state2 = {}
+                for k, v in state.items():
+                    if k.startswith('encoder.'):
+                        # 移除"encoder."前缀（8个字符）
+                        state2[k[8:]] = v
+                    else:
+                        # 如果没有前缀，保留原键
+                        state2[k] = v
+                network.encoder.load_state_dict(state2, strict=True)
+        else:
+            print(f"The encoder pre-trained weight path does not exist: {path}")
+    if opt.decoder:
+        path = os.path.join(abspath, str(opt.decoder))
+        if os.path.exists(path):
+            state = torch.load(path, map_location="cpu")
+            print("load model params from {}".format(path))
+            try:
+                network.decoder.load_state_dict(state, strict=True)
+            except:
+                state2 = {}
+                for k, v in state.items():
+                    if k.startswith('decoder.'):
+                        # 移除"decoder."前缀（8个字符）
+                        state2[k[8:]] = v
+                    else:
+                        # 如果没有前缀，保留原键
+                        state2[k] = v
+                network.decoder.load_state_dict(state2, strict=True)
+        else:
+            print(f"The decoder pre-trained weight path does not exist: {path}")
 
     network.eval()
     network.cuda()
@@ -189,13 +206,18 @@ if __name__ == "__main__":
 
     joints_loss = {"left": [], "right": []}
     verts_loss = {"left": [], "right": []}
-    hms_loss=[]
-    dense_loss=[]
-    mask_loss=[]
+    hms_confusion_matrix = confusion_matrix = np.zeros(
+        (cfg.MODEL.HRNet_MODEL.NUM_CLASSES, cfg.MODEL.HRNet_MODEL.NUM_CLASSES)
+    )
+    mask_confusion_matrix = confusion_matrix = np.zeros(
+        (cfg.MODEL.HRNet_MODEL.NUM_CLASSES, cfg.MODEL.HRNet_MODEL.NUM_CLASSES)
+    )
+    dense_confusion_matrix = confusion_matrix = np.zeros(
+        (cfg.MODEL.HRNet_MODEL.NUM_CLASSES, cfg.MODEL.HRNet_MODEL.NUM_CLASSES)
+    )
 
     with torch.no_grad():
         for data in tqdm(dataloader):
-
             imgTensors = data[0].cuda()
             hmsTensors = data[1].cuda()
             maskTensors = data[2].cuda()
@@ -221,19 +243,23 @@ if __name__ == "__main__":
             joints_right_gt = joints_right_gt - root_right_gt
             verts_right_gt = verts_right_gt - root_right_gt
 
-            result, paramsDict, handDictList, otherInfo = network(imgTensors)
-            # result, paramsDict, handDictList, otherInfo = network.decoder(
-            #     hmsTensors,
-            #     maskTensors,
-            #     torch.cat(
-            #         (
-            #             denseTensors * maskTensors[:, :1],
-            #             denseTensors * maskTensors[:, 1:],
-            #         ),
-            #         dim=1,
-            #     ),
-            # )
+            result = {}
+            if cfg.TRAIN.train_modules == 'all':
+                result, paramsDict, handDictList, otherInfo = network(
+                    imgTensors)
 
+            elif cfg.TRAIN.train_modules == 'decoder':
+                maskTensors = maskTensors[:, 1:]
+                Maps_dict_gt = {
+                    "hms": hmsTensors,
+                    "mask": maskTensors,
+                    "dense": torch.cat(
+                        (denseTensors * maskTensors[:, :1], denseTensors * maskTensors[:, 1:]), dim=1
+                    )
+                }
+                result, paramsDict, handDictList, otherInfo = network.decoder(
+                    Maps_dict_gt)
+                
             verts_left_pred = result["verts3d"]["left"]
             verts_right_pred = result["verts3d"]["right"]
             joints_left_pred = J_regressor["left"](verts_left_pred)
@@ -247,15 +273,21 @@ if __name__ == "__main__":
             length_right_pred = torch.linalg.norm(
                 joints_right_pred[:, 9] - joints_right_pred[:, 0], dim=-1
             )
-            scale_left = (length_left_gt / length_left_pred).unsqueeze(-1).unsqueeze(-1)
+            scale_left = (
+                (length_left_gt / length_left_pred).unsqueeze(-1).unsqueeze(-1)
+            )
             scale_right = (
                 (length_right_gt / length_right_pred).unsqueeze(-1).unsqueeze(-1)
             )
 
-            joints_left_pred = (joints_left_pred - root_left_pred) * scale_left
-            verts_left_pred = (verts_left_pred - root_left_pred) * scale_left
-            joints_right_pred = (joints_right_pred - root_right_pred) * scale_right
-            verts_right_pred = (verts_right_pred - root_right_pred) * scale_right
+            joints_left_pred = (joints_left_pred -
+                                root_left_pred) * scale_left
+            verts_left_pred = (verts_left_pred -
+                                root_left_pred) * scale_left
+            joints_right_pred = (joints_right_pred -
+                                    root_right_pred) * scale_right
+            verts_right_pred = (verts_right_pred -
+                                root_right_pred) * scale_right
 
             joint_left_loss = torch.linalg.norm(
                 (joints_left_pred - joints_left_gt), ord=2, dim=-1
@@ -280,23 +312,7 @@ if __name__ == "__main__":
             )
             vert_right_loss = vert_right_loss.detach().cpu().numpy()
             verts_loss["right"].append(vert_right_loss)
-            if {'hms', 'dense', 'mask'}.issubset(otherInfo):
-                hms_loss.append(evaluate_heatmaps(hmsTensors,otherInfo['hms']))
-                dense_loss.append(evaluate_heatmaps(denseTensors,otherInfo['dense']))
-                mask_loss.append(evaluate_heatmaps(maskTensors,otherInfo['mask']))
 
-    joints_loss["left"] = np.concatenate(joints_loss["left"], axis=0)
-    joints_loss["right"] = np.concatenate(joints_loss["right"], axis=0)
-    verts_loss["left"] = np.concatenate(verts_loss["left"], axis=0)
-    verts_loss["right"] = np.concatenate(verts_loss["right"], axis=0)
-    
-    joints_mean_loss_left = joints_loss["left"].mean() * 1000
-    joints_mean_loss_right = joints_loss["right"].mean() * 1000
-    verts_mean_loss_left = verts_loss["left"].mean() * 1000
-    verts_mean_loss_right = verts_loss["right"].mean() * 1000
-    hms_loss=hms_loss.mean()
-    dense_loss=dense_loss.mean()
-    mask_loss=mask_loss.mean()
 
     flops, params = get_model_complexity_info(
         network,
@@ -304,19 +320,26 @@ if __name__ == "__main__":
         as_strings=True,
         print_per_layer_stat=False,
     )
-    print(f"model:{opt.model}")
     print(f"FLOPs: {flops}")
     print(f"Params: {params}")
+
+    joints_loss["left"] = np.concatenate(joints_loss["left"], axis=0)
+    joints_loss["right"] = np.concatenate(joints_loss["right"], axis=0)
+    verts_loss["left"] = np.concatenate(verts_loss["left"], axis=0)
+    verts_loss["right"] = np.concatenate(verts_loss["right"], axis=0)
+
+    joints_mean_loss_left = joints_loss["left"].mean() * 1000
+    joints_mean_loss_right = joints_loss["right"].mean() * 1000
+    verts_mean_loss_left = verts_loss["left"].mean() * 1000
+    verts_mean_loss_right = verts_loss["right"].mean() * 1000
     print("joint mean error:")
-    print("    left: {} mm".format(joints_mean_loss_left))
-    print("    right: {} mm".format(joints_mean_loss_right))
-    print("    all: {} mm".format((joints_mean_loss_left + joints_mean_loss_right) / 2))
+    print("    left: {:.2f} mm".format(joints_mean_loss_left))
+    print("    right: {:.2f} mm".format(joints_mean_loss_right))
+    print("    all: {:.2f} mm".format(
+        (joints_mean_loss_left + joints_mean_loss_right) / 2))
     print("vert mean error:")
-    print("    left: {} mm".format(verts_mean_loss_left))
-    print("    right: {} mm".format(verts_mean_loss_right))
-    print("    all: {} mm".format((verts_mean_loss_left + verts_mean_loss_right) / 2))
-    print("SSIM:")
-    print("    hms: {}".format(hms_loss))
-    print("    dense: {}".format(dense_loss))
-    print("    mask: {}".format(mask_loss))
-    
+    print("    left: {:.2f} mm".format(verts_mean_loss_left))
+    print("    right: {:.2f} mm".format(verts_mean_loss_right))
+    print("    all: {:.2f} mm".format(
+        (verts_mean_loss_left + verts_mean_loss_right) / 2))
+

@@ -1,9 +1,5 @@
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-from einops import rearrange
-
-from torch import Tensor
 from .gcn import GraphLayer
 from .EfficientAdditiveAttention import EfficientAdditiveAttention, FeedForward
 
@@ -51,17 +47,10 @@ class DualGraphLayer(nn.Module):
             dropout,
         )
         self.inter_atten = nn.Sequential(
-                EfficientAdditiveAttention(
-                    in_dims=verts_out_dim, num_heads=4, dropout=dropout
-                ),
-                FeedForward(verts_out_dim, verts_out_dim),
-        )
-
-        self.pos_emb_l = nn.Parameter(
-            torch.zeros(1, self.verts_num, self.verts_out_dim)
-        )
-        self.pos_emb_r = nn.Parameter(
-            torch.zeros(1, self.verts_num, self.verts_out_dim)
+            EfficientAdditiveAttention(
+                in_dims=verts_out_dim, num_heads=4, dropout=dropout
+            ),
+            FeedForward(verts_out_dim, verts_out_dim),
         )
 
     def forward(self, Lf, Rf):
@@ -74,8 +63,8 @@ class DualGraphLayer(nn.Module):
 
         Lf = self.graph_left(Lf)
         Rf = self.graph_right(Rf)
-        
-        feat=self.inter_atten(torch.cat((Lf,Rf),dim=1))
+
+        feat = self.inter_atten(torch.cat((Lf, Rf), dim=1))
         Lf = feat[:, :V]
         Rf = feat[:, V:]
 

@@ -1,26 +1,18 @@
-import torch
-import json
-import cv2 as cv
-import numpy as np
-from tqdm import tqdm
-import pickle
-import argparse
-import yacs
-import random
-import torch.distributed as dist
-import torch.multiprocessing as mp
-
 import sys
 import os
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from models.manolayer import ManoLayer
-from utils.config import load_cfg
+sys.path.insert(0, os.path.abspath(
+    os.path.join(os.path.dirname(__file__), '..')))
+
 from core.gcn_trainer import train_gcn
+from utils.config import load_cfg
+import argparse
+import torch.multiprocessing as mp
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("cfg", type=str)
+    # parser.add_argument("--model", type=str,, default='0')
     parser.add_argument('--gpu', type=str, default='0')
     opt = parser.parse_args()
 
@@ -41,7 +33,7 @@ if __name__ == '__main__':
         file.write(cfg.dump())
 
     if not dist_training:
-        train_gcn(cfg=cfg)
+        train_gcn(cfg=cfg, train_modules=cfg.TRAIN.train_modules)
     else:
         mp.spawn(train_gcn,
                  args=(num_gpus, cfg, True),

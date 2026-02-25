@@ -11,10 +11,7 @@ import sys
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from core.test_utils import InterRender
-from dataset.dataset_utils import IMG_SIZE
-from utils.utils import get_mano_path, imgUtils
-from utils.config import load_cfg
-from models.model import load_model
+from utils.utils import imgUtils
 
 
 def cut_img(img, bbox):
@@ -170,7 +167,7 @@ def reverse_processing_hms(hms_tensor, original_sizes, flip=False, num_keypoints
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--cfg", type=str, default="utils/defaults.yaml")
-    parser.add_argument("--model", type=str, default="misc/model/wild_demo.pth")
+    # parser.add_argument("--model", type=str, default="misc/model/wild_demo.pth")
     parser.add_argument("--live_demo", action="store_true")
     parser.add_argument("--img_path", type=str, default="demo/")
     parser.add_argument("--save_path", type=str, default="demo/")
@@ -178,7 +175,7 @@ if __name__ == "__main__":
     opt = parser.parse_args()
 
     model = InterRender(
-        cfg_path=opt.cfg, model_path=opt.model, render_size=opt.render_size
+        cfg_path=opt.cfg, render_size=opt.render_size
     )
 
     if not os.path.exists(opt.save_path):
@@ -238,7 +235,10 @@ if __name__ == "__main__":
             params, result, paramsDict, handDictList, otherInfo = model.run_model(
                 img
             )
+            
             img_overlap = model.render(params, bg_img=img)
+            img_overlap2 = model.render(params)
+            
             # cv.imwrite(os.path.join(opt.save_path,
             #                         img_name + '.jpg'), img)
             # cv.imwrite(os.path.join(opt.save_path,
@@ -248,31 +248,41 @@ if __name__ == "__main__":
                 scale = img.shape[0] / img_overlap.shape[0]
                 new_width = int(img_overlap.shape[1] * scale)
                 img_overlap = cv.resize(img_overlap, (new_width, img.shape[0]))
+                img_overlap2 = cv.resize(img_overlap2, (new_width, img.shape[0]))
+                
             img_tran = transform(image=img)
             img_tran = img_tran["image"]
 
-            mask = otherInfo["mask"]
-            mask = reverse_processing_mask(
-                mask.squeeze(), (256, 256), flip=False, first_channel_value=0
-            )
-            hms = otherInfo["hms"]
-            hms = reverse_processing_hms_list = reverse_processing_hms(
-                hms.squeeze(), [(256, 256)], flip=False, num_keypoints=21
-            )
-            dense = otherInfo["dense"]
-            dense = reverse_processing_dense(dense.squeeze(), (256, 256))
+            if "mask" in otherInfo:
+                mask = otherInfo["mask"]
+                mask = reverse_processing_mask(
+                    mask.squeeze(), (256, 256), flip=False, first_channel_value=0
+                )
+                cv.imwrite(os.path.join(opt.save_path, img_name + "_mask.jpg"), mask)
+            if "hms" in otherInfo:
+                hms = otherInfo["hms"]
+                hms = reverse_processing_hms_list = reverse_processing_hms(
+                    hms.squeeze(), [(256, 256)], flip=False, num_keypoints=21
+                )
+                cv.imwrite(os.path.join(opt.save_path, img_name + "_hms.jpg"), hms[0])
+            if "dense" in otherInfo:
+                dense = otherInfo["dense"]
+                dense = reverse_processing_dense(dense.squeeze(), (256, 256))
+                cv.imwrite(os.path.join(opt.save_path, img_name + "_dense.jpg"), dense)
 
             cv.imwrite(os.path.join(opt.save_path, img_name + "_ori_img.jpg"), img)
             cv.imwrite(
                 os.path.join(opt.save_path, img_name + "_output_img.jpg"),
                 img_overlap,
             )
+            cv.imwrite(os.path.join(opt.save_path, img_name + "_ori_img2.jpg"), img)
             cv.imwrite(
-                os.path.join(opt.save_path, img_name + "_trans_img.jpg"), img_tran
+                os.path.join(opt.save_path, img_name + "_output_img2.jpg"),
+                img_overlap2,
             )
-            cv.imwrite(os.path.join(opt.save_path, img_name + "_mask.jpg"), mask)
-            cv.imwrite(os.path.join(opt.save_path, img_name + "_hms.jpg"), hms[0])
-            cv.imwrite(os.path.join(opt.save_path, img_name + "_dense.jpg"), dense)
+            # cv.imwrite(
+            #     os.path.join(opt.save_path, img_name + "_trans_img.jpg"), img_tran
+            # )
 
     else:
         video_reader = cv.VideoCapture(0)

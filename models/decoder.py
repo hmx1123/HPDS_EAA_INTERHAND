@@ -1,8 +1,3 @@
-from models.modules.InvertedResidual import (
-    InvertedResidual,
-    DepthWiseSeparable,
-    DepthWiseSeparableRes,
-)
 from models.modules import GCN_vert_convert, DualGraph, EAViT
 from utils.utils import (
     projection_batch,
@@ -11,16 +6,15 @@ from utils.utils import (
     get_upsample_path,
     get_mesh_dict_path,
 )
-from dataset.dataset_utils import IMG_SIZE, BONE_LENGTH
-import numpy as np
+from dataset.dataset_utils import IMG_SIZE
 import pickle
-import torch.nn.functional as F
 import torch.nn as nn
 import torch
 import os
 import sys
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+sys.path.insert(0, os.path.abspath(
+    os.path.join(os.path.dirname(__file__), "..")))
 
 
 def weights_init(layer):
@@ -37,8 +31,9 @@ def weights_init(layer):
 class decoder(nn.Module):
     def __init__(
         self,
-        map_dim=50,
+        maps=[],
         vit_dim=256,
+        head_dim=125,
         gcn_in_dim=[256, 128, 128],
         gcn_out_dim=[128, 128, 64],
         graph_k=2,
@@ -85,6 +80,14 @@ class decoder(nn.Module):
                 graph_perm_reverse=graph_dict[hand_type]["graph_perm_reverse"],
                 graph_perm=graph_dict[hand_type]["graph_perm"],
             )
+        self.maps = maps
+        map_dim = sum(
+            [
+                21 * 2 if "hms" in maps else 0,
+                3 * 2 if "dense" in maps else 0,
+                2 if "mask" in maps else 0,
+            ]
+        )
 
         self.vit = EAViT(
             image_size=64,
@@ -92,7 +95,7 @@ class decoder(nn.Module):
             num_classes=self.gcn_in_dim[0],
             dim=vit_dim,
             depth=6,
-            heads=vit_dim // 64,
+            heads=vit_dim // head_dim,
             mlp_dim=vit_dim // 2,
             channels=map_dim,
         )
@@ -112,8 +115,6 @@ class decoder(nn.Module):
             dropout=dropout,
         )
 
-        self.unsample_layer = nn.Linear(self.vNum_out, self.vNum_mano, bias=False)
-
         self.avg_head = nn.Linear(self.gcn_in_dim[0], 3)
         self.coord_avg_head = nn.AvgPool1d(
             kernel_size=self.gcn_out_dim[-1] // 3, stride=self.gcn_out_dim[-1] // 3
@@ -125,24 +126,25 @@ class decoder(nn.Module):
         for m in self.modules():
             weights_init(m)
 
-        if upsample_weight is not None:
-            state = {
-                "weight": upsample_weight.to(self.unsample_layer.weight.data.device)
-            }
-            self.unsample_layer.load_state_dict(state)
-        else:
-            weights_init(self.unsample_layer)
 
-    def get_upsample_weight(self):
-        return self.unsample_layer.weight.data
 
     def forward(self, Map):
-        map = torch.cat([v for _, v in Map.items()], dim=1)
+
+        tensors_to_concat = []
+        if "hms" in self.maps:
+            tensors_to_concat.append(Map["hms"])
+        if "mask" in self.maps:
+            tensors_to_concat.append(Map["mask"])
+        if "dense" in self.maps:
+            tensors_to_concat.append(Map["dense"])
+
+        if len(tensors_to_concat) > 0:
+            map = torch.cat(tensors_to_concat, dim=1)
 
         grid_fmaps = self.vit(map)
 
         Lf = grid_fmaps[:, : self.vNum_in]
-        Rf = grid_fmaps[:, self.vNum_in + 1 : -1]
+        Rf = grid_fmaps[:, self.vNum_in + 1: -1]
         Lf, Rf = self.dual_gcn(Lf, Rf)
 
         scale = {}
@@ -168,9 +170,7 @@ class decoder(nn.Module):
                 verts3d[hand_type],
                 img_size=IMG_SIZE,
             )
-            # result["verts3d"][hand_type] = self.unsample_layer(
-            #     verts3d[hand_type].transpose(1, 2)
-            # ).transpose(1, 2)
+
             result["verts3d"][hand_type] = verts3d[hand_type]
             result["verts2d"][hand_type] = projection_batch(
                 scale[hand_type],
@@ -199,7 +199,6 @@ class decoder(nn.Module):
                 otherInfo["verts2d_MANO_list"][hand_type].append(
                     self.converter[hand_type].GCN_to_vert(v)
                 )
-        otherInfo.update(Map)
 
         return result, paramsDict, handDictList, otherInfo
 
@@ -231,8 +230,9 @@ def load_decoder(cfg):
     #     graphs_adj_128x128 = pickle.load(file)
 
     model = decoder(
-        map_dim=cfg.MODEL.HRNet_MODEL.NUM_CLASSES,
+        maps=cfg.MODEL.HRNet_MODEL.HRNet_OUTPUT,
         vit_dim=cfg.MODEL.VIT_DIM,
+        head_dim=cfg.MODEL.HEAD_DIM,
         gcn_in_dim=cfg.MODEL.GCN_IN_DIM,
         gcn_out_dim=cfg.MODEL.GCN_OUT_DIM,
         graph_k=cfg.MODEL.graph_k,

@@ -5,11 +5,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-import pickle
-import numpy as np
 
-from dataset.dataset_utils import IMG_SIZE
 from models.encoder import load_encoder
 from models.decoder import load_decoder
 
@@ -25,6 +21,7 @@ class Module(nn.Module):
     def forward(self, img):
         maps_dict = self.encoder(img)
         result, paramsDict, handDictList, otherInfo = self.decoder(maps_dict)
+        # otherInfo.update(maps_dict)
 
         return result, paramsDict, handDictList, otherInfo
 
@@ -45,16 +42,53 @@ def load_model(cfg):
     print(f"Params: {params}")
 
     abspath = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-    path = os.path.join(abspath, str(cfg.MODEL_PARAM.MODEL_PRETRAIN_PATH))
+    
+    # 加载编码器预训练权重
+    path = os.path.join(abspath, str(cfg.MODEL_PARAM.ENCODER_PRETRAIN_PATH))
     if os.path.exists(path):
         state = torch.load(path, map_location="cpu")
         print("load model params from {}".format(path))
+        
+        # 尝试直接加载
         try:
-            model.load_state_dict(state)
-        except:
+            model.encoder.load_state_dict(state, strict=True)
+        except RuntimeError as e:
+            # 如果直接加载失败，尝试去除前缀"encoder."（假设有8个字符的前缀）
+            print(f"Direct loading failed. Try removing the prefix:")
             state2 = {}
             for k, v in state.items():
-                state2[k[7:]] = v
-            model.load_state_dict(state2, strict=False)
+                if k.startswith('encoder.'):
+                    # 移除"encoder."前缀（8个字符）
+                    state2[k[8:]] = v
+                else:
+                    # 如果没有前缀，保留原键
+                    state2[k] = v
+            model.encoder.load_state_dict(state2, strict=True)
+    else:
+        print(f"The encoder pre-trained weight path does not exist: {path}")
+
+    # 加载解码器预训练权重
+    path = os.path.join(abspath, str(cfg.MODEL_PARAM.DECODER_PRETRAIN_PATH))
+    if os.path.exists(path):
+        state = torch.load(path, map_location="cpu")
+        print("load model params from {}".format(path))
+        
+        # 尝试直接加载（使用strict=False允许部分加载）
+        try:
+            model.decoder.load_state_dict(state, strict=True)
+        except RuntimeError as e:
+            # 如果直接加载失败，尝试去除前缀
+            print(f"Direct loading failed. Try removing the prefix:")
+            state2 = {}
+            for k, v in state.items():
+                if k.startswith('decoder.'):
+                    # 移除"decoder."前缀（8个字符）
+                    state2[k[8:]] = v
+                else:
+                    # 如果没有前缀，保留原键
+                    state2[k] = v
+            model.decoder.load_state_dict(state2, strict=False)
+    else:
+        print(f"The decoder pre-trained weight path does not exist: {path}")
 
     return model
