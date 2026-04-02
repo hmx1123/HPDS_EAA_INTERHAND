@@ -15,8 +15,8 @@ from pytorch_lightning import seed_everything
 from utils.utils import get_mano_path, imgUtils
 import cv2 as cv
 
-model = InterRender(cfg_path='output/model/exp/hrnet_w18_YModel_vit512_gcn256_24_hms_only/hrnet_w18_YModel_vit512_gcn256_24_hms_only.yaml',
-                    model_path="output/model/exp/hrnet_w18_YModel_vit512_gcn256_24_hms_only/hrnet_w18_YModel_vit512_gcn256_24_hms_only_15.pth",
+model = InterRender(cfg_path='output/model/exp/hrnet_w32_YModel_vit512_gcn256_24_all/hrnet_w32_YModel_vit512_gcn256_24_all.yaml',
+                    # model_path="output/model/exp/hrnet_w18_YModel_vit512_gcn256_24_hms_only/hrnet_w18_YModel_vit512_gcn256_24_hms_only_15.pth",
                     render_size=256)
 
 
@@ -29,7 +29,8 @@ def process(img_path):
         params, _, _, _, otherInfo = model.run_model(img)
 
         img_overlap = model.render(params, bg_img=img)
-
+        img_overlap = img_overlap[:, :, ::-1]
+        
         if img.shape[0] != img_overlap.shape[0]:
             # 计算缩放比例，保持宽高比
             scale = img.shape[0] / img_overlap.shape[0]

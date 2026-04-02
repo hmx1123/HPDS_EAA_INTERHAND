@@ -5,8 +5,14 @@ from core.loader import handDataset
 from utils.utils import get_mano_path
 from utils.DataProvider import DataProvider
 from utils.lr_sc import StepLR_withWarmUp
+from utils.tb_utils import tbUtils
+from dataset.inference import get_final_preds2
+from core.vis_train import tb_vis_train_gcn
+from dataset.dataset_utils import IMG_SIZE, BLUR_KERNEL
 from torch.nn.parallel import DistributedDataParallel as DDP
 import torch.distributed as dist
+from torch.utils.tensorboard import SummaryWriter
+from utils.vis_utils import mano_two_hands_renderer
 from transformers import Adafactor
 from dataset.dataset_utils import IMG_SIZE
 import random
@@ -67,7 +73,7 @@ def train_gcn(rank=0, world_size=1, cfg=None, dist_training=False, train_modules
     elif train_modules == 'decoder':
         params_source = network.decoder.parameters()
     elif train_modules == 'all':
-        params_source = network.encoder.parameters()
+        params_source = network.parameters()
 
     optim_params = [p for p in params_source if p.requires_grad]
 
@@ -114,12 +120,12 @@ def train_gcn(rank=0, world_size=1, cfg=None, dist_training=False, train_modules
     )
     # print('local rank {}: init lr_scheduler, done'.format(rank))
 
-    # if rank == 0:
-    #     # tensorboard
-    #     writer = SummaryWriter(cfg.TB.SAVE_DIR)
-    #     renderer = mano_two_hands_renderer(
-    #         img_size=IMG_SIZE, device="cuda:{}".format(rank)
-    #     )
+    if rank == 0:
+        # tensorboard
+        writer = SummaryWriter(cfg.TB.SAVE_DIR)
+        renderer = mano_two_hands_renderer(
+            img_size=IMG_SIZE, device="cuda:{}".format(rank)
+        )
 
     # --------------------------
     # | 2. load dataset & Loss |
@@ -179,6 +185,7 @@ def train_gcn(rank=0, world_size=1, cfg=None, dist_training=False, train_modules
         if rank == 0:
             train_bar = tqdm(train_bar)
         for bIdx in train_bar:
+            total_idx = epoch * train_batch_per_epoch + bIdx
 
             # ------------
             # | training |
@@ -210,7 +217,11 @@ def train_gcn(rank=0, world_size=1, cfg=None, dist_training=False, train_modules
             handDictList = {}
             otherInfo = {}
             Maps_dict_gt = {}
-
+            
+            if train_modules == 'encoder':
+                otherInfo = network.encoder(
+                    imgTensors_gt)
+                
             if train_modules == 'decoder':
                 Maps_dict_gt = {
                     "hms": hms_gt,
@@ -223,8 +234,11 @@ def train_gcn(rank=0, world_size=1, cfg=None, dist_training=False, train_modules
                     Maps_dict_gt)
 
             elif train_modules == 'all':
-                result, paramsDict, handDictList, otherInfo = network(
+                Maps = network.encoder(
                     imgTensors_gt)
+                result, paramsDict, handDictList, otherInfo = network.decoder(
+                    Maps)
+                otherInfo.update(Maps)
 
             loss, aux_lost_dict, mano_loss_dict, coarsen_loss_dict = calc_loss_GCN(
                 cfg,
@@ -259,43 +273,43 @@ def train_gcn(rank=0, world_size=1, cfg=None, dist_training=False, train_modules
             # ---------------
             # | tensorboard |
             # ---------------
-            # if rank == 0:
-                #     writer.add_scalar(
-                #         'learning_rate', lr_scheduler.get_lr()[0], total_idx)
-                #     writer.add_scalar('train/total_loss', loss.item(), total_idx)
-                #     for k, v in mano_loss_dict.items():
-                #         if k != 'total_loss':
-                #             writer.add_scalar(
-                #                 'train/mano_{}'.format(k), v.item(), total_idx)
-                #     for k, v in aux_lost_dict.items():
-                #         if k != 'total_loss':
-                #             writer.add_scalar(
-                #                 'train/aux_{}'.format(k), v.item(), total_idx)
-                #     for k, v in coarsen_loss_dict.items():
-                #         if k != 'total_loss':
-                #             for t in range(len(v)):
-                #                 writer.add_scalar(
-                #                     'train/coarsen_{}_{}'.format(k, t), v[t].item(), total_idx)
-                #     if (total_idx + 1) % cfg.TB.SHOW_GAP == 0:
-                #         tb_vis_train_gcn(cfg, writer, total_idx, renderer, v2d_l, v2d_r,
-                #                          ori_img, mask_gt, dense_gt,
-                #                          result, paramsDict, handDictList, otherInfo)
+            if rank == 0:
+                    writer.add_scalar(
+                        'learning_rate', lr_scheduler.get_lr()[0], total_idx)
+                    writer.add_scalar('train/total_loss', loss.item(), total_idx)
+                    for k, v in mano_loss_dict.items():
+                        if k != 'total_loss':
+                            writer.add_scalar(
+                                'train/mano_{}'.format(k), v.item(), total_idx)
+                    for k, v in aux_lost_dict.items():
+                        if k != 'total_loss':
+                            writer.add_scalar(
+                                'train/aux_{}'.format(k), v.item(), total_idx)
+                    for k, v in coarsen_loss_dict.items():
+                        if k != 'total_loss':
+                            for t in range(len(v)):
+                                writer.add_scalar(
+                                    'train/coarsen_{}_{}'.format(k, t), v[t].item(), total_idx)
+                    if (total_idx + 1) % cfg.TB.SHOW_GAP == 0:
+                        tb_vis_train_gcn(cfg, writer, total_idx, renderer, v2d_l, v2d_r,
+                                         ori_img, mask_gt, dense_gt,
+                                         result, paramsDict, handDictList, otherInfo)
 
-                #         tbUtils.draw_MANO_joints(
-                #             writer, 'hms/l_gt', total_idx, ori_img[0], j2d_l[0])
-                #         handJ2d_pred, _ = get_final_preds2(
-                #             otherInfo['hms'][:, :21].detach().cpu().numpy(), BLUR_KERNEL)
-                #         handJ2d_pred = torch.from_numpy(handJ2d_pred) * aux_lambda
-                #         tbUtils.draw_MANO_joints(
-                #             writer, 'hms/l_pred', total_idx, ori_img[0], handJ2d_pred[0])
+                        tbUtils.draw_MANO_joints(
+                            writer, 'hms/l_gt', total_idx, ori_img[0], j2d_l[0])
+                        handJ2d_pred, _ = get_final_preds2(
+                            otherInfo['hms'][:, :21].detach().cpu().numpy(), BLUR_KERNEL)
+                        handJ2d_pred = torch.from_numpy(handJ2d_pred) * aux_lambda
+                        tbUtils.draw_MANO_joints(
+                            writer, 'hms/l_pred', total_idx, ori_img[0], handJ2d_pred[0])
 
-                #         tbUtils.draw_MANO_joints(
-                #             writer, 'hms/r_gt', total_idx, ori_img[0], j2d_r[0])
-                #         handJ2d_pred, _ = get_final_preds2(
-                #             otherInfo['hms'][:, 21:].detach().cpu().numpy(), BLUR_KERNEL)
-                #         handJ2d_pred = torch.from_numpy(handJ2d_pred) * aux_lambda
-                #         tbUtils.draw_MANO_joints(
-                #             writer, 'hms/r_pred', total_idx, ori_img[0], handJ2d_pred[0])
+                        tbUtils.draw_MANO_joints(
+                            writer, 'hms/r_gt', total_idx, ori_img[0], j2d_r[0])
+                        handJ2d_pred, _ = get_final_preds2(
+                            otherInfo['hms'][:, 21:].detach().cpu().numpy(), BLUR_KERNEL)
+                        handJ2d_pred = torch.from_numpy(handJ2d_pred) * aux_lambda
+                        tbUtils.draw_MANO_joints(
+                            writer, 'hms/r_pred', total_idx, ori_img[0], handJ2d_pred[0])
 
                 # --------
                 # | tqdm |

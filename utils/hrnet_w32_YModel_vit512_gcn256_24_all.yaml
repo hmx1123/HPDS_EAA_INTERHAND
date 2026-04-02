@@ -23,10 +23,10 @@ MODEL:
   HRNet_MODEL:
     NAME: hrnet
     NUM_OUTPUTS: 1
-    PRETRAINED: "misc/model/hrnet_ade20k_4312_torch04.pth"
+    PRETRAINED: "misc/model/hrnet_w18_small_model_v2.pth"
     ALIGN_CORNERS: "None"
     NUM_CLASSES: 50
-    HRNet_OUTPUT: ['hms']
+    HRNet_OUTPUT: ['hms','dense','mask']
     EXTRA:
       FINAL_CONV_KERNEL: 1
       STAGE1:
@@ -46,8 +46,8 @@ MODEL:
           - 4
           - 4
         NUM_CHANNELS:
-          - 48
-          - 96
+          - 32
+          - 64
         FUSE_METHOD: SUM
       STAGE3:
         NUM_MODULES: 4
@@ -58,9 +58,9 @@ MODEL:
           - 4
           - 4
         NUM_CHANNELS:
-          - 48
-          - 96
-          - 192
+          - 32
+          - 64
+          - 128
         FUSE_METHOD: SUM
       STAGE4:
         NUM_MODULES: 3
@@ -72,14 +72,14 @@ MODEL:
           - 4
           - 4
         NUM_CHANNELS:
-          - 48
-          - 96
-          - 192
-          - 384
+          - 32
+          - 64
+          - 128
+          - 256
         FUSE_METHOD: SUM
 MODEL_PARAM:
-  ENCODER_PRETRAIN_PATH: "none"
-  DECODER_PRETRAIN_PATH: "none"
+  ENCODER_PRETRAIN_PATH: "./output/model/exp/hrnet_w32_YModel_vit512_gcn256_24_all/hrnet_w32_YModel_vit512_gcn256_24_hms_only_all_lr0p001_bs64_loss7p84_encoder_50.pth"
+  DECODER_PRETRAIN_PATH: "./output/model/exp/hrnet_w32_YModel_vit512_gcn256_24_all/hrnet_w32_YModel_vit512_gcn256_24_hms_only_all_lr0p001_bs64_loss7p84_decoder_50.pth"
   OPTIM_PATH: "none"
   LrSc_PATH: "none"
 DATASET:
@@ -97,7 +97,7 @@ TRAIN:
   warm_up: 3
   EPOCHS: 400
   BATCH_SIZE: 64
-  LR: 1.0e-3
+  LR: 1.0e-5
   dropout: 0.07
   train_modules: "all"
 LOSS_WEIGHT:
@@ -120,5 +120,5 @@ TB:
   SAVE_DIR: "./output/log/exp"
 SAVE:
   SAVE_GAP: 1
-  SAVE_DIR: "none"
-  SAVE_NAME: "none"
+  SAVE_DIR: "./output/model/exp/hrnet_w32_YModel_vit512_gcn256_24_all"
+  SAVE_NAME: hrnet_w32_YModel_vit512_gcn256_24_all_

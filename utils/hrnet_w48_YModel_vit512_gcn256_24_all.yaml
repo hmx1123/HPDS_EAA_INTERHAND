@@ -23,10 +23,10 @@ MODEL:
   HRNet_MODEL:
     NAME: hrnet
     NUM_OUTPUTS: 1
-    PRETRAINED: "misc/model/hrnet_ade20k_4312_torch04.pth"
+    PRETRAINED: "misc/model/hrnet_w18_small_model_v2.pth"
     ALIGN_CORNERS: "None"
     NUM_CLASSES: 50
-    HRNet_OUTPUT: ['hms']
+    HRNet_OUTPUT: ['hms','dense','mask']
     EXTRA:
       FINAL_CONV_KERNEL: 1
       STAGE1:
@@ -78,8 +78,8 @@ MODEL:
           - 384
         FUSE_METHOD: SUM
 MODEL_PARAM:
-  ENCODER_PRETRAIN_PATH: "none"
-  DECODER_PRETRAIN_PATH: "none"
+  ENCODER_PRETRAIN_PATH: "./output/model/exp/hrnet_w48_YModel_vit512_gcn256_24_all/hrnet_w48_YModel_vit512_gcn256_24_all_lr0p01_bs32_loss2p54_encoder_3.pth"
+  DECODER_PRETRAIN_PATH: "./output/model/exp/hrnet_w48_YModel_vit512_gcn256_24_all/hrnet_w48_YModel_vit512_gcn256_24_all_lr0p01_bs32_loss2p54_decoder_3.pth"
   OPTIM_PATH: "none"
   LrSc_PATH: "none"
 DATASET:
@@ -97,7 +97,7 @@ TRAIN:
   warm_up: 3
   EPOCHS: 400
   BATCH_SIZE: 64
-  LR: 1.0e-3
+  LR: 1.0e-2
   dropout: 0.07
   train_modules: "all"
 LOSS_WEIGHT:
@@ -120,5 +120,5 @@ TB:
   SAVE_DIR: "./output/log/exp"
 SAVE:
   SAVE_GAP: 1
-  SAVE_DIR: "none"
-  SAVE_NAME: "none"
+  SAVE_DIR: "./output/model/exp/hrnet_w48_YModel_vit512_gcn256_24_all"
+  SAVE_NAME: hrnet_w48_YModel_vit512_gcn256_24_all_

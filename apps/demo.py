@@ -270,16 +270,16 @@ if __name__ == "__main__":
                 dense = reverse_processing_dense(dense.squeeze(), (256, 256))
                 cv.imwrite(os.path.join(opt.save_path, img_name + "_dense.jpg"), dense)
 
-            cv.imwrite(os.path.join(opt.save_path, img_name + "_ori_img.jpg"), img)
+            # cv.imwrite(os.path.join(opt.save_path, img_name + "_ori_img.jpg"), img)
             cv.imwrite(
                 os.path.join(opt.save_path, img_name + "_output_img.jpg"),
                 img_overlap,
             )
-            cv.imwrite(os.path.join(opt.save_path, img_name + "_ori_img2.jpg"), img)
-            cv.imwrite(
-                os.path.join(opt.save_path, img_name + "_output_img2.jpg"),
-                img_overlap2,
-            )
+            # cv.imwrite(os.path.join(opt.save_path, img_name + "_ori_img2.jpg"), img)
+            # cv.imwrite(
+            #     os.path.join(opt.save_path, img_name + "_output_img2.jpg"),
+            #     img_overlap2,
+            # )
             # cv.imwrite(
             #     os.path.join(opt.save_path, img_name + "_trans_img.jpg"), img_tran
             # )
