@@ -1,0 +1,21 @@
+# 编译产物
+__pycache__/
+*.pyc
+*.pyo
+
+# IDE 配置
+.vscode/
+
+# 模型文件和临时数据（根据需求，如果要忽略则取消注释）
+misc/
+output/
+
+# 临时脚本和日志
+new.py
+nohup.out
+remove_pth.py
+run_evals.out
+run_evals.sh
+see_pth.py
+test.py
+test00.py
