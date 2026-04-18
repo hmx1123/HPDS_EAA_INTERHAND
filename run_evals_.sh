@@ -2,11 +2,11 @@
 
 echo "Start sequential model evaluation..."
 
-names="hrnet_w48_YModel_vit512_gcn256_24_all"
-train="lr1en05_bs64_loss2p54"
+names="hrnet_w32_YModel_vit512_gcn256_24_hms_only_all"
+train="lr1en05_bs64_loss1p44"
 #!/bin/bash
 
-for i in {1..100}; do
+for i in {1..50}; do
     echo "========================================"
     echo "Start evaluating model: ${names}_${train}_${i}"
     echo "Start time: $(date)"
@@ -14,7 +14,7 @@ for i in {1..100}; do
     # Define path variables
     encoder_path="./output/model/exp/${names}/${names}_${train}_encoder_${i}.pth"
     decoder_path="./output/model/exp/${names}/${names}_${train}_decoder_${i}.pth"
-    config_path="./utils/$names.yaml"
+    config_path="./output/model/exp/${names}/${names}.yaml"
     output_file="./evals/eval_${names}_${train}_${i}.out"
     
     # Check if all required files exist

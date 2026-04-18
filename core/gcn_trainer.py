@@ -217,11 +217,11 @@ def train_gcn(rank=0, world_size=1, cfg=None, dist_training=False, train_modules
             handDictList = {}
             otherInfo = {}
             Maps_dict_gt = {}
-            
+
             if train_modules == 'encoder':
                 otherInfo = network.encoder(
                     imgTensors_gt)
-                
+
             if train_modules == 'decoder':
                 Maps_dict_gt = {
                     "hms": hms_gt,
@@ -238,7 +238,7 @@ def train_gcn(rank=0, world_size=1, cfg=None, dist_training=False, train_modules
                     imgTensors_gt)
                 result, paramsDict, handDictList, otherInfo = network.decoder(
                     Maps)
-                otherInfo.update(Maps)
+                otherInfo["hms"] = Maps["hms"]
 
             loss, aux_lost_dict, mano_loss_dict, coarsen_loss_dict = calc_loss_GCN(
                 cfg,
@@ -274,42 +274,42 @@ def train_gcn(rank=0, world_size=1, cfg=None, dist_training=False, train_modules
             # | tensorboard |
             # ---------------
             if rank == 0:
-                    writer.add_scalar(
-                        'learning_rate', lr_scheduler.get_lr()[0], total_idx)
-                    writer.add_scalar('train/total_loss', loss.item(), total_idx)
-                    for k, v in mano_loss_dict.items():
-                        if k != 'total_loss':
+                writer.add_scalar(
+                    'learning_rate', lr_scheduler.get_lr()[0], total_idx)
+                writer.add_scalar('train/total_loss', loss.item(), total_idx)
+                for k, v in mano_loss_dict.items():
+                    if k != 'total_loss':
+                        writer.add_scalar(
+                            'train/mano_{}'.format(k), v.item(), total_idx)
+                for k, v in aux_lost_dict.items():
+                    if k != 'total_loss':
+                        writer.add_scalar(
+                            'train/aux_{}'.format(k), v.item(), total_idx)
+                for k, v in coarsen_loss_dict.items():
+                    if k != 'total_loss':
+                        for t in range(len(v)):
                             writer.add_scalar(
-                                'train/mano_{}'.format(k), v.item(), total_idx)
-                    for k, v in aux_lost_dict.items():
-                        if k != 'total_loss':
-                            writer.add_scalar(
-                                'train/aux_{}'.format(k), v.item(), total_idx)
-                    for k, v in coarsen_loss_dict.items():
-                        if k != 'total_loss':
-                            for t in range(len(v)):
-                                writer.add_scalar(
-                                    'train/coarsen_{}_{}'.format(k, t), v[t].item(), total_idx)
-                    if (total_idx + 1) % cfg.TB.SHOW_GAP == 0:
-                        tb_vis_train_gcn(cfg, writer, total_idx, renderer, v2d_l, v2d_r,
-                                         ori_img, mask_gt, dense_gt,
-                                         result, paramsDict, handDictList, otherInfo)
+                                'train/coarsen_{}_{}'.format(k, t), v[t].item(), total_idx)
+                if (total_idx + 1) % cfg.TB.SHOW_GAP == 0:
+                    tb_vis_train_gcn(cfg, writer, total_idx, renderer, v2d_l, v2d_r,
+                                     ori_img, mask_gt, dense_gt,
+                                     result, paramsDict, handDictList, otherInfo)
 
-                        tbUtils.draw_MANO_joints(
-                            writer, 'hms/l_gt', total_idx, ori_img[0], j2d_l[0])
-                        handJ2d_pred, _ = get_final_preds2(
-                            otherInfo['hms'][:, :21].detach().cpu().numpy(), BLUR_KERNEL)
-                        handJ2d_pred = torch.from_numpy(handJ2d_pred) * aux_lambda
-                        tbUtils.draw_MANO_joints(
-                            writer, 'hms/l_pred', total_idx, ori_img[0], handJ2d_pred[0])
+                    tbUtils.draw_MANO_joints(
+                        writer, 'hms/l_gt', total_idx, ori_img[0], j2d_l[0])
+                    handJ2d_pred, _ = get_final_preds2(
+                        otherInfo['hms'][:, :21].detach().cpu().numpy(), BLUR_KERNEL)
+                    handJ2d_pred = torch.from_numpy(handJ2d_pred) * aux_lambda
+                    tbUtils.draw_MANO_joints(
+                        writer, 'hms/l_pred', total_idx, ori_img[0], handJ2d_pred[0])
 
-                        tbUtils.draw_MANO_joints(
-                            writer, 'hms/r_gt', total_idx, ori_img[0], j2d_r[0])
-                        handJ2d_pred, _ = get_final_preds2(
-                            otherInfo['hms'][:, 21:].detach().cpu().numpy(), BLUR_KERNEL)
-                        handJ2d_pred = torch.from_numpy(handJ2d_pred) * aux_lambda
-                        tbUtils.draw_MANO_joints(
-                            writer, 'hms/r_pred', total_idx, ori_img[0], handJ2d_pred[0])
+                    tbUtils.draw_MANO_joints(
+                        writer, 'hms/r_gt', total_idx, ori_img[0], j2d_r[0])
+                    handJ2d_pred, _ = get_final_preds2(
+                        otherInfo['hms'][:, 21:].detach().cpu().numpy(), BLUR_KERNEL)
+                    handJ2d_pred = torch.from_numpy(handJ2d_pred) * aux_lambda
+                    tbUtils.draw_MANO_joints(
+                        writer, 'hms/r_pred', total_idx, ori_img[0], handJ2d_pred[0])
 
                 # --------
                 # | tqdm |
@@ -339,7 +339,7 @@ def train_gcn(rank=0, world_size=1, cfg=None, dist_training=False, train_modules
                 torch.save(
                     network.encoder.state_dict(),
                     os.path.join(
-                        cfg.SAVE.SAVE_DIR, cfg.SAVE.SAVE_NAME + 
+                        cfg.SAVE.SAVE_DIR, cfg.SAVE.SAVE_NAME +
                         f"lr{optimizer.param_groups[0]['lr']}_bs{cfg.TRAIN.BATCH_SIZE}_loss{np.mean(epoch_loss):.2f}_".replace(
                             '.', 'p').replace('e-', 'en') +
                         "encoder_" + str(epoch + 1) + ".pth"
