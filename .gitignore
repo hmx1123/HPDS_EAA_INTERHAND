@@ -16,6 +16,7 @@ new.py
 nohup.out
 remove_pth.py
 run_evals.out
+run_evals_.sh
 run_evals.sh
 see_pth.py
 test.py
