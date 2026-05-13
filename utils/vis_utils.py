@@ -34,7 +34,10 @@ from pytorch3d.renderer import (
     HardGouraudShader,
     AmbientLights,
     SoftSilhouetteShader,
+    FoVPerspectiveCameras,
 )
+
+
 
 
 class Renderer:
@@ -104,6 +107,9 @@ class Renderer:
         mesh = Meshes(
             verts=verts.to(self.device), faces=faces.to(self.device), textures=textures
         )
+        num_cameras = cameras.R.shape[0]
+        if num_cameras > 1 and len(mesh) == 1:
+            mesh = mesh.extend(num_cameras)   # PyTorch3D 的 Meshes.extend(N) 方法可直接复制
         output = self.renderer_rgb(mesh, cameras=cameras, lights=lights)
         alpha = output[..., 3]
         img = output[..., :3] / 255
@@ -217,7 +223,116 @@ class mano_two_hands_renderer(Renderer):
         with open(dense_path, "rb") as file:
             dense_coor = pickle.load(file)
         self.dense_coor = torch.from_numpy(dense_coor) * 255
+        
+    # def get_three_view_cameras(self,device, dist=2.0):
+    #     """
+    #     生成三视图相机对象列表 [正视图, 侧视图, 俯视图]
+    #     """
+    #     # 正视图
+    #     R_front, T_front = look_at_view_transform(
+    #         eye=[[0.0, 0.0, dist]],    # 相机位置
+    #         at=[[0.0, 0.0, 0.0]],      # 看向原点
+    #         up=[[0.0, 1.0, 0.0]]       # 上方向
+    #     )
+    #     # 侧视图 (右)
+    #     R_side, T_side = look_at_view_transform(
+    #         eye=[[dist, 0.0, 0.0]],
+    #         at=[[0.0, 0.0, 0.0]],
+    #         up=[[0.0, 1.0, 0.0]]
+    #     )
+    #     # 俯视图
+    #     R_top, T_top = look_at_view_transform(
+    #         eye=[[0.0, dist, 0.0]],
+    #         at=[[0.0, 0.0, 0.0]],
+    #         up=[[0.0, 0.0, 1.0]]        # 让Z轴成为图像的上方
+    #     )
 
+    #     cameras = FoVPerspectiveCameras(
+    #         device=device,
+    #         R=torch.cat([R_front, R_side, R_top]),   # 拼接为(3,3,3)
+    #         T=torch.cat([T_front, T_side, T_top])    # (3,3)
+    #     )
+    #     return cameras
+    
+    def get_three_view_cameras(
+        self, scale=None, trans2d=None, dist=2.0, device=None
+    ):
+        """
+        生成三个正交相机：正视图、侧视图、俯视图，并继承原系统的缩放/平移参数。
+        
+        Args:
+            scale:    (B,2) tensor，原始缩放因子，用于焦距 = 2*scale
+            trans2d:  (B,2) tensor，原始平移量，用于主点 = -trans2d
+            dist:     相机到世界原点的距离（控制视图范围）
+            device:   目标设备，默认 self.device
+        Returns:
+            OrthographicCameras 对象，包含 3*B 个相机（如果 B>1）
+        """
+        if device is None:
+            device = self.device
+
+        # ---------- 1. 处理缩放和平移参数 ----------
+        if scale is not None:
+            # 取 batch 大小（可能为 1 或更多）
+            B = scale.shape[0]
+            # 焦距和主点在 NDC 下的表达式，与原代码完全一致
+            focal = (2 * scale).to(device).float()      # (B,2)
+        else:
+            # 如果没有提供，则使用默认值（例如 1.0 焦距，无偏移）
+            B = 1
+            focal = torch.tensor([[1.0, 1.0]], device=device)  # (1,2)
+            
+        if trans2d is not None:
+            # 取 batch 大小（可能为 1 或更多）
+            B = scale.shape[0]
+            # 焦距和主点在 NDC 下的表达式，与原代码完全一致
+            pp = (-trans2d).to(device).float()          # (B,2)
+        else:
+            # 如果没有提供，则使用默认值（例如 1.0 焦距，无偏移）
+            B = 1
+            pp = torch.tensor([[0.0, 0.0]], device=device)     # (1,2)
+
+        # ---------- 2. 生成三个视角的外参 ----------
+        # 正视图：相机在 Z=dist，看向原点，Y 轴向上
+        Rf, Tf = look_at_view_transform(
+            eye=[[0.0, 0.0, dist]],
+            at=[[0.0, 0.0, 0.0]],
+            up=[[0.0, 1.0, 0.0]],
+        )
+        # 侧视图（右）：相机在 X=dist
+        Rs, Ts = look_at_view_transform(
+            eye=[[dist, 0.0, 0.0]],
+            at=[[0.0, 0.0, 0.0]],
+            up=[[0.0, 1.0, 0.0]],
+        )
+        # 俯视图：相机在 Y=dist，Z 轴向上
+        Rt, Tt = look_at_view_transform(
+            eye=[[0.0, dist, 0.0]],
+            at=[[0.0, 0.0, 0.0]],
+            up=[[0.0, 0.0, 1.0]],
+        )
+
+        # ---------- 3. 适配 batch 维度 ----------
+        # 如果原 batch > 1，则需要将每个视角的外参重复 B 次，与 focal/pp 对齐
+        # 这里我们为每个视角生成 B 份复制，最终得到 3*B 个相机
+        R_batch = torch.cat([Rf.repeat(B, 1, 1), Rs.repeat(B, 1, 1), Rt.repeat(B, 1, 1)])
+        T_batch = torch.cat([Tf.repeat(B, 1), Ts.repeat(B, 1), Tt.repeat(B, 1)])
+
+        # focal 和 pp 需要扩展为 3*B 份（每个视角都使用相同的缩放/平移）
+        focal_batch = focal.repeat(3, 1)   # (3*B, 2)
+        pp_batch = pp.repeat(3, 1)        # (3*B, 2)
+
+        # ---------- 4. 构造正交相机 ----------
+        cameras = OrthographicCameras(
+            focal_length=focal_batch,
+            principal_point=pp_batch,
+            R=R_batch.to(device),
+            T=T_batch.to(device),
+            in_ndc=True,
+            device=device,
+        )
+        return cameras
+    
     def render_rgb(
         self,
         cameras=None,
@@ -249,15 +364,28 @@ class mano_two_hands_renderer(Renderer):
         v_color = v_color.expand(bs, 2 * vNum, 3).float().to(self.device)
 
         v3d = torch.cat((v3d_left, v3d_right), dim=1)
-
-        return self.render(
+        
+        texture=self.build_texture(uv_verts, uv_faces, texture, v_color)
+        
+        result1=self.render(
             v3d,
             self.faces.repeat(bs, 1, 1),
             self.build_camera(cameras, scale, trans2d),
-            self.build_texture(uv_verts, uv_faces, texture, v_color),
+            texture,
             amblights,
             lights,
         )
+        
+        result2=self.render(
+            v3d,
+            self.faces.repeat(bs, 1, 1),
+            self.get_three_view_cameras(device='cuda', scale=scale),
+            texture,
+            amblights,
+            lights,
+        )
+
+        return result1, result2
 
     def render_rgb_orth(
         self,

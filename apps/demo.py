@@ -163,7 +163,6 @@ def reverse_processing_hms(hms_tensor, original_sizes, flip=False, num_keypoints
 
     return original_hms
 
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--cfg", type=str, default="utils/defaults.yaml")
@@ -236,8 +235,8 @@ if __name__ == "__main__":
                 img
             )
             
-            img_overlap = model.render(params, bg_img=img)
-            img_overlap2 = model.render(params)
+            img_overlap,img_overlap2 = model.render(params, bg_img=img)
+            # img_overlap2 = model.render(params)
             
             # cv.imwrite(os.path.join(opt.save_path,
             #                         img_name + '.jpg'), img)
@@ -276,10 +275,18 @@ if __name__ == "__main__":
                 img_overlap,
             )
             # cv.imwrite(os.path.join(opt.save_path, img_name + "_ori_img2.jpg"), img)
-            # cv.imwrite(
-            #     os.path.join(opt.save_path, img_name + "_output_img2.jpg"),
-            #     img_overlap2,
-            # )
+            cv.imwrite(
+                os.path.join(opt.save_path, img_name + "_output_img0.jpg"),
+                img_overlap2[0],
+            )
+            cv.imwrite(
+                os.path.join(opt.save_path, img_name + "_output_img1.jpg"),
+                img_overlap2[1],
+            )
+            cv.imwrite(
+                os.path.join(opt.save_path, img_name + "_output_img2.jpg"),
+                img_overlap2[2],
+            )
             # cv.imwrite(
             #     os.path.join(opt.save_path, img_name + "_trans_img.jpg"), img_tran
             # )

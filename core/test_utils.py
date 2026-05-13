@@ -93,7 +93,7 @@ class InterRender:
 
     @torch.no_grad()
     def render(self, params, bg_img=None):
-        img_out, mask_out = self.renderer.render_rgb_orth(
+        result1, result2 = self.renderer.render_rgb_orth(
             scale_left=params["scale_left"],
             trans2d_left=params["trans2d_left"],
             scale_right=params["scale_right"],
@@ -101,6 +101,8 @@ class InterRender:
             v3d_left=params["v3d_left"],
             v3d_right=params["v3d_right"],
         )
+        
+        img_out, mask_out= result1
         img_out = img_out[0].detach().cpu().numpy() * 255
         mask_out = mask_out[0].detach().cpu().numpy()[..., np.newaxis]
 
@@ -111,8 +113,15 @@ class InterRender:
             bg_img = cv.resize(bg_img, (self.render_size, self.render_size))
 
         img_out = img_out * mask_out + bg_img * (1 - mask_out)
-        img_out = img_out.astype(np.uint8)
-        return img_out
+        img_out1 = img_out.astype(np.uint8)
+        
+        img_out, mask_out = result2
+        img_out2 = img_out.detach().cpu().numpy() * 255
+        # mask_out = mask_out.detach().cpu().numpy()[..., np.newaxis]
+        # mask_out = list(mask_out)
+        # img_out2 = [img_out[i] * mask_out[i] + bg_img * (1 - mask_out[i]).astype(np.uint8) for i in range(len(mask_out))]
+        
+        return img_out1, img_out2
 
     @torch.no_grad()
     def render_other_view(self, params, theta=60):
