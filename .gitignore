@@ -12,6 +12,7 @@ __pycache__/
 # 模型文件和临时数据（根据需求，如果要忽略则取消注释）
 misc/
 output/
+img_out/
 
 # 临时脚本和日志
 new.py
